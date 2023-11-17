@@ -1,39 +1,43 @@
+import bisect
 import struct
 
 from pyroaring import BitMap
 
+from data_accessor import DataAccessor
 from db import create_roaring_bitmap
-import pickle
-from dataclasses import dataclass
-import pandas as pd
 
-
-@dataclass
-class SegmentColumnMetadata:
-    uniq_value_count: int
-    row_count: int
-    offset_dictionary: int
-    offset_list: int
-    offset_bitmap_offsets: int
-    offset_bitmaps_list: int
-    end_offset: int
-
-    def load_from_serialized_data(data):
-        return SegmentColumnMetadata(*struct.unpack('iiiiiii', data))
-
-    def serialize(self) -> bytes:
-        serialized_metadata = struct.pack('iiiiiii', *self.__dict__.values())
-        return serialized_metadata
+from segment_column_metadata import SegmentColumnMetadata
+from serialization_utils import SerializationUtils
 
 
 class SegmentColumn:
     metadata: SegmentColumnMetadata
-    payload_binary: str
+    data_accessor: DataAccessor
+
+    def __init__(self, metadata, data_accessor):
+        self.metadata = metadata
+        self.data_accessor = data_accessor
+
+    @staticmethod
+    def load(data_accessor: DataAccessor) -> 'SegmentColumn':
+        metadata = SegmentColumnMetadata.load_from_serialized_data(data_accessor.fetch_metadata())
+        return SegmentColumn(metadata, data_accessor)
+
+    @staticmethod
+    def create(data_accessor: DataAccessor, raw_column_data: list) -> 'SegmentColumn':
+        encoded_data = SegmentColumn.encode_column(raw_column_data)
+        metadata_binary, data_binary = SegmentColumn.serialize(encoded_data)
+        data_accessor.write_metadata(metadata_binary)
+        data_accessor.write(data_binary)
+
+        return SegmentColumn.load(data_accessor)
 
     @staticmethod
     def encode_column(column_data: list):
+        column_data = list(map(str, column_data))
+
         # Create a dictionary mapping unique values to integer IDs
-        unique_values = list(set(column_data))
+        unique_values = sorted(set(column_data))
         dictionary = {value: i for i, value in enumerate(unique_values)}
 
         # Create a list of integer IDs using the dictionary
@@ -49,10 +53,10 @@ class SegmentColumn:
         dictionary, encoded_list, bitmaps = encoded_data
 
         # Serialize dictionary
-        dictionary_binary = Helper.serialize_strlist(list(dictionary.keys()))
+        dictionary_binary = SerializationUtils.serialize_strlist(list(dictionary.keys()))
 
         # Serialize list
-        encoded_list_binary = Helper.serialize_intlist(encoded_list)
+        encoded_list_binary = SerializationUtils.serialize_intlist(encoded_list)
 
         # Serialize bitmaps and offsets
         bitmaps_binary = b''
@@ -60,11 +64,11 @@ class SegmentColumn:
         current_offset = len(dictionary_binary) + len(encoded_list_binary) + len(dictionary) * struct.calcsize("I")
         for value, bitmap in bitmaps.items():
             offsets.append(current_offset)
-            varlen_bitmap_binary = Helper.serialize_bitmap(bitmap)
+            varlen_bitmap_binary = SerializationUtils.serialize_bitmap(bitmap)
             bitmaps_binary += varlen_bitmap_binary
             current_offset += len(varlen_bitmap_binary)
 
-        offsets_binary = Helper.serialize_intlist(offsets)
+        offsets_binary = SerializationUtils.serialize_intlist(offsets)
 
         metadata = SegmentColumnMetadata(
             uniq_value_count=len(dictionary),
@@ -79,75 +83,91 @@ class SegmentColumn:
         payload_binary = dictionary_binary + encoded_list_binary + offsets_binary + bitmaps_binary
         return metadata.serialize(), payload_binary
 
-    @staticmethod
-    def deserialize(metadata: SegmentColumnMetadata, data):
-        dictionary = Helper.deserialize_strlist(
-            Helper.read_bytes(data, metadata.offset_dictionary, metadata.offset_list)
+    def deserialize(self):
+        dictionary = SerializationUtils.deserialize_strlist(
+            self.data_accessor.fetch(self.metadata.offset_dictionary, self.metadata.offset_list)
         )
 
-        encoded_list = Helper.deserialize_intlist(
-            Helper.read_bytes(data, metadata.offset_list, metadata.offset_bitmap_offsets), metadata.row_count
+        encoded_list = SerializationUtils.deserialize_intlist(
+            self.data_accessor.fetch(self.metadata.offset_list, self.metadata.offset_bitmap_offsets),
+            self.metadata.row_count
         )
 
-        offsets = Helper.deserialize_intlist(
-            Helper.read_bytes(data, metadata.offset_bitmap_offsets, metadata.offset_bitmaps_list),
-            metadata.uniq_value_count
+        offsets = SerializationUtils.deserialize_intlist(
+            self.data_accessor.fetch(self.metadata.offset_bitmap_offsets, self.metadata.offset_bitmaps_list),
+            self.metadata.uniq_value_count
         )
 
-        bitmaps = Helper.deserialize_bitmap_list(
-            Helper.read_bytes(data, metadata.offset_bitmaps_list, metadata.end_offset), metadata.uniq_value_count
+        bitmaps = SerializationUtils.deserialize_bitmap_list(
+            self.data_accessor.fetch(self.metadata.offset_bitmaps_list, self.metadata.end_offset),
+            self.metadata.uniq_value_count
         )
 
         return dictionary, encoded_list, offsets, bitmaps
 
+    def decode(self):
+        deserialized_data = self.deserialize()
+        return [deserialized_data[0][index] for index in deserialized_data[1]]
 
-class Helper:
-    @staticmethod
-    def serialize_strlist(list):
-        return pickle.dumps(list)
+    def get_bitmap(self, index: int) -> BitMap:
+        if index < 0 or index > self.metadata.uniq_value_count - 1:
+            raise Exception(f"[get_bitmap] Unknown index: {index}")
 
-    @staticmethod
-    def deserialize_strlist(serialized_data) -> list:
-        return pickle.loads(serialized_data)
+        # Seek to index in offset_bitmap_offsets to find the bitmap
+        if index == self.metadata.uniq_value_count - 1:
+            bitmap_offset_start, bitmap_offset_end = SerializationUtils.deserialize_int(
+                self.data_accessor.fetch(self.metadata.offset_bitmap_offsets + index * 4,
+                                         self.metadata.offset_bitmap_offsets + index * 4 + 4)
+            ), self.metadata.end_offset
+        else:
+            bitmap_offset_start, bitmap_offset_end = SerializationUtils.deserialize_intlist(
+                self.data_accessor.fetch(self.metadata.offset_bitmap_offsets + index * 4,
+                                         self.metadata.offset_bitmap_offsets + index * 4 + 8),
+                2
+            )
 
-    @staticmethod
-    def serialize_intlist(list):
-        return struct.pack(f"{len(list)}i", *list)
+        # Get the bitmap
+        bitmap, _ = SerializationUtils.deserialize_bitmap(
+            self.data_accessor.fetch(bitmap_offset_start, bitmap_offset_end)
+        )
+        return bitmap
 
-    @staticmethod
-    def deserialize_intlist(serialized_data, length):
-        return struct.unpack(f"{length}i", serialized_data)
+    def get_bitmap_for_item(self, item: str):
+        index = self.get_index_for_item(item)
+        return self.get_bitmap(index)
 
-    @staticmethod
-    def serialize_bitmap(bitmap):
-        bitmap_content = bitmap.serialize()
-        return struct.pack(f'I{len(bitmap_content)}B', len(bitmap_content), *bitmap_content)
+    def get_index_for_item(self, item):
+        # lookup item in dictionary and find out the dictionary_code
+        dictionary = SerializationUtils.deserialize_strlist(
+            self.data_accessor.fetch(self.metadata.offset_dictionary, self.metadata.offset_list)
+        )
+        return binary_search(dictionary, item)
 
-    @staticmethod
-    def deserialize_bitmap(serialized_data, byte_offset=0):
-        bitmap_length = struct.unpack('I', serialized_data[byte_offset:byte_offset + 4])[0]
-        bitmap_content = \
-        struct.unpack(f'{bitmap_length}s', serialized_data[byte_offset + 4: byte_offset + 4 + bitmap_length])[0]
-        return BitMap.deserialize(bitmap_content), bitmap_length
+    def get_encoded_value_for_index(self, index):
+        encoded_value = SerializationUtils.deserialize_int(
+            self.data_accessor.fetch(self.metadata.offset_list + index * 4,
+                                     self.metadata.offset_list + index * 4 + 4)
+        )
+        return encoded_value
 
-    @staticmethod
-    def deserialize_bitmap_list(serialized_data, length):
-        byte_offset = 0
-        bitmap_list = []
-        for i in range(length):
-            bitmap, serialized_bitmap_length = Helper.deserialize_bitmap(serialized_data, byte_offset)
-            bitmap_list.append(bitmap)
-            byte_offset += serialized_bitmap_length + struct.calcsize('I')
-        return bitmap_list
+    def decode_keys_with_items(self, dictionary_to_replace):
+        dictionary = SerializationUtils.deserialize_strlist(
+            self.data_accessor.fetch(self.metadata.offset_dictionary, self.metadata.offset_list)
+        )
 
-    @staticmethod
-    def read_bytes(data, start, end):
-        return data[start:end]
+        return {dictionary[encoded_key]: value for encoded_key, value in dictionary_to_replace.items()}
+
+
+def binary_search(arr, x):
+    index = bisect.bisect_left(arr, x)
+    if index != len(arr) and arr[index] == x:
+        return index
+    else:
+        return -1
 
 
 if __name__ == '__main__':
-    data = ["Eminem", "Jay-z", "Eminem", "Rihanna", "Jay-z"]
-    series = pd.Series(data)
+    data = ["Eminem", "Jay-z", "Rihanna", "Rihanna", "Jay-z", "Akon", "Akon"]
     encoded_data = SegmentColumn.encode_column(data)
     print("Encoded:", encoded_data)
 
@@ -157,5 +177,25 @@ if __name__ == '__main__':
     meta = SegmentColumnMetadata.load_from_serialized_data(serialized_data[0])
     print("Meta:", meta)
 
-    deserialized_data = SegmentColumn.deserialize(meta, serialized_data[1])
-    print("Deserialized:", deserialized_data)
+    print("--------")
+
+    data_accessor = DataAccessor("./binarydb")
+    segment_column = SegmentColumn.create(data_accessor, data)
+    # segment_column = SegmentColumn.load_from_accessor(data_accessor)
+    res = segment_column.deserialize()
+    print(res)
+
+    y = segment_column.decode()
+    print(y)
+
+    bitmap1 = segment_column.get_bitmap_for_item("Eminem")
+    print("Bitmap: ", bitmap1)
+
+    bitmap2 = segment_column.get_bitmap_for_item("Akon")
+
+    bitmap = bitmap1.union(bitmap2)
+
+    def aggregation_count_func(index_encoded_value_map, encoded_value):
+        index_encoded_value_map[encoded_value] = index_encoded_value_map.get(encoded_value, 0) + 1
+
+
