@@ -1,5 +1,11 @@
 import struct
 from dataclasses import dataclass
+from enum import Enum
+
+
+class SegmentColumnType(Enum):
+    DIMENSION = 1
+    METRIC = 2
 
 
 @dataclass
@@ -11,13 +17,19 @@ class SegmentColumnMetadata:
     offset_bitmap_offsets: int
     offset_bitmaps_list: int
     end_offset: int
+    type: SegmentColumnType
 
     @staticmethod
     def load_from_serialized_data(serialized_data: bytes) -> 'SegmentColumnMetadata':
-        return SegmentColumnMetadata(*struct.unpack('iiiiiii', serialized_data))
+        # Unpack the enum as an integer
+        values = struct.unpack('i'*8, serialized_data)
+        return SegmentColumnMetadata(*values[:-1], type=SegmentColumnType(values[-1]))
 
     def serialize(self) -> bytes:
-        serialized_metadata = struct.pack('iiiiiii', *self.__dict__.values())
+        # Pack the enum as an integer
+        values = list(self.__dict__.values())[:-1]  # Exclude the enum value
+        values.append(self.type.value)
+        serialized_metadata = struct.pack('i'*8, *values)
         return serialized_metadata
 
     def stats(self) -> dict:

@@ -1,13 +1,30 @@
-import bisect
 import struct
 
 from pyroaring import BitMap
 
+from common_utils import binary_search
 from data_accessor import DataAccessor
 from db import create_roaring_bitmap
 
-from segment_column_metadata import SegmentColumnMetadata
+from segment_column_metadata import SegmentColumnMetadata, SegmentColumnType
 from serialization_utils import SerializationUtils
+
+"""
+Terminology for data structures
+# Dictionary
+    {[dictionary_id]: [dictionary_value]}
+    dictionary_value can also be referred to as `item`
+    Eg. ["Eminem", "Jay-Z", "Linkin Park"]
+    
+# List
+    Contains list of encoded values in range [0, count(rows)) indexed by list_index
+    It will contain dictionary_id in range (0, max(dictionary_id))
+    Eg. [2, 2, 1, 0, 1, 1, 2]
+
+# Bitmap indexes
+    Contains bitmap indexes for each of the dictionary items i.e. total of len(dictionary) bitmap indexes
+     BitMap[3], BitMap[2,4,5], BitMap[0,1,6]
+"""
 
 
 class SegmentColumn:
@@ -77,7 +94,8 @@ class SegmentColumn:
             offset_list=len(dictionary_binary),
             offset_bitmap_offsets=len(dictionary_binary) + len(encoded_list_binary),
             offset_bitmaps_list=len(dictionary_binary) + len(encoded_list_binary) + len(offsets_binary),
-            end_offset=len(dictionary_binary) + len(encoded_list_binary) + len(offsets_binary) + len(bitmaps_binary)
+            end_offset=len(dictionary_binary) + len(encoded_list_binary) + len(offsets_binary) + len(bitmaps_binary),
+            type=SegmentColumnType.DIMENSION
         )
 
         payload_binary = dictionary_binary + encoded_list_binary + offsets_binary + bitmaps_binary
@@ -109,46 +127,20 @@ class SegmentColumn:
         deserialized_data = self.deserialize()
         return [deserialized_data[0][index] for index in deserialized_data[1]]
 
-    def get_bitmap(self, index: int) -> BitMap:
-        if index < 0 or index > self.metadata.uniq_value_count - 1:
-            raise Exception(f"[get_bitmap] Unknown index: {index}")
-
-        # Seek to index in offset_bitmap_offsets to find the bitmap
-        if index == self.metadata.uniq_value_count - 1:
-            bitmap_offset_start, bitmap_offset_end = SerializationUtils.deserialize_int(
-                self.data_accessor.fetch(self.metadata.offset_bitmap_offsets + index * 4,
-                                         self.metadata.offset_bitmap_offsets + index * 4 + 4)
-            ), self.metadata.end_offset
-        else:
-            bitmap_offset_start, bitmap_offset_end = SerializationUtils.deserialize_intlist(
-                self.data_accessor.fetch(self.metadata.offset_bitmap_offsets + index * 4,
-                                         self.metadata.offset_bitmap_offsets + index * 4 + 8),
-                2
-            )
-
-        # Get the bitmap
-        bitmap, _ = SerializationUtils.deserialize_bitmap(
-            self.data_accessor.fetch(bitmap_offset_start, bitmap_offset_end)
-        )
-        return bitmap
-
-    def get_bitmap_for_item(self, item: str):
-        index = self.get_index_for_item(item)
-        return self.get_bitmap(index)
-
-    def get_index_for_item(self, item):
+    def get_dictionary_id_for_item(self, item):
         # lookup item in dictionary and find out the dictionary_code
         dictionary = SerializationUtils.deserialize_strlist(
             self.data_accessor.fetch(self.metadata.offset_dictionary, self.metadata.offset_list)
         )
         return binary_search(dictionary, item)
 
-    def get_encoded_value_for_index(self, index):
-        encoded_value = SerializationUtils.deserialize_int(
-            self.data_accessor.fetch(self.metadata.offset_list + index * 4,
-                                     self.metadata.offset_list + index * 4 + 4)
-        )
-        return encoded_value
+    def get_bitmap_for_item(self, item: str) -> BitMap:
+        dictionary_id = self.get_dictionary_id_for_item(item)
+        if dictionary_id == -1:
+            # Empty item was not found in the dictionary, return BitMap with everything set to 0
+            # indicating none of the rows match
+            return BitMap()
+        return self.get_bitmap(dictionary_id)
 
     def decode_keys_with_items(self, dictionary_to_replace):
         dictionary = SerializationUtils.deserialize_strlist(
@@ -157,45 +149,40 @@ class SegmentColumn:
 
         return {dictionary[encoded_key]: value for encoded_key, value in dictionary_to_replace.items()}
 
+    def get_dictionary_value_for_dictionary_id(self, dictionary_id):
+        dictionary = SerializationUtils.deserialize_strlist(
+            self.data_accessor.fetch(self.metadata.offset_dictionary, self.metadata.offset_list)
+        )
+        return dictionary[dictionary_id]
 
-def binary_search(arr, x):
-    index = bisect.bisect_left(arr, x)
-    if index != len(arr) and arr[index] == x:
-        return index
-    else:
-        return -1
+    def get_dictionary_id_for_index(self, index):
+        encoded_value = SerializationUtils.deserialize_int(
+            self.data_accessor.fetch(self.metadata.offset_list + index * 4,
+                                     self.metadata.offset_list + index * 4 + 4)
+        )
+        return encoded_value
 
+    def get_bitmap(self, dictionary_id: int) -> BitMap:
+        if dictionary_id < 0 or dictionary_id > self.metadata.uniq_value_count - 1:
+            raise Exception(f"[get_bitmap] Unknown dictionary_id: {dictionary_id}")
 
-if __name__ == '__main__':
-    data = ["Eminem", "Jay-z", "Rihanna", "Rihanna", "Jay-z", "Akon", "Akon"]
-    encoded_data = SegmentColumn.encode_column(data)
-    print("Encoded:", encoded_data)
+        # Seek to index=dictionary_id in offset_bitmap_offsets to find the bitmap
+        if dictionary_id == self.metadata.uniq_value_count - 1:
+            bitmap_offset_start, bitmap_offset_end = SerializationUtils.deserialize_int(
+                self.data_accessor.fetch(self.metadata.offset_bitmap_offsets + dictionary_id * 4,
+                                         self.metadata.offset_bitmap_offsets + dictionary_id * 4 + 4)
+            ), self.metadata.end_offset
+        else:
+            bitmap_offset_start, bitmap_offset_end = SerializationUtils.deserialize_intlist(
+                self.data_accessor.fetch(self.metadata.offset_bitmap_offsets + dictionary_id * 4,
+                                         self.metadata.offset_bitmap_offsets + dictionary_id * 4 + 8),
+                2
+            )
 
-    serialized_data = SegmentColumn.serialize(encoded_data)
-    print("Serialized:", serialized_data)
-
-    meta = SegmentColumnMetadata.load_from_serialized_data(serialized_data[0])
-    print("Meta:", meta)
-
-    print("--------")
-
-    data_accessor = DataAccessor("./binarydb")
-    segment_column = SegmentColumn.create(data_accessor, data)
-    # segment_column = SegmentColumn.load_from_accessor(data_accessor)
-    res = segment_column.deserialize()
-    print(res)
-
-    y = segment_column.decode()
-    print(y)
-
-    bitmap1 = segment_column.get_bitmap_for_item("Eminem")
-    print("Bitmap: ", bitmap1)
-
-    bitmap2 = segment_column.get_bitmap_for_item("Akon")
-
-    bitmap = bitmap1.union(bitmap2)
-
-    def aggregation_count_func(index_encoded_value_map, encoded_value):
-        index_encoded_value_map[encoded_value] = index_encoded_value_map.get(encoded_value, 0) + 1
+        # Get the bitmap
+        bitmap, _ = SerializationUtils.deserialize_bitmap(
+            self.data_accessor.fetch(bitmap_offset_start, bitmap_offset_end)
+        )
+        return bitmap
 
 
