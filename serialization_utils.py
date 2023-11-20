@@ -1,17 +1,32 @@
 import pickle
 import struct
 
-from pyroaring import BitMap
+from pyroaring import BitMap # type: ignore
 
 
 class SerializationUtils:
     @staticmethod
-    def serialize_strlist(list):
-        return pickle.dumps(list)
+    def serialize_strlist(items: list[str]) -> bytes:
+        return pickle.dumps(items)
 
     @staticmethod
-    def deserialize_strlist(serialized_data) -> list:
+    def deserialize_strlist(serialized_data) -> list[str]:
         return pickle.loads(serialized_data)
+
+    @staticmethod
+    def serialize_strlist_with_offsets(strlist: list[str]):
+        offsets = [0]
+        encoded_list=[]
+        for item in strlist:
+            encoded = item.encode("utf-8")
+            offsets.append(offsets[-1] + len(encoded))
+            encoded_list.append(encoded)
+        serialized_list = b"".join(encoded_list)
+        return serialized_list, SerializationUtils.serialize_intlist(offsets)
+
+    @staticmethod
+    def deserialize_string(str_bytes):
+        return str_bytes.decode("utf-8")
 
     @staticmethod
     def serialize_intlist(list):
