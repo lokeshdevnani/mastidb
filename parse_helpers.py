@@ -1,6 +1,7 @@
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Union
+
 from mo_sql_parsing import parse, normal_op
 
 
@@ -14,7 +15,7 @@ def listwrap(value):
 
 
 def extract_aggregations(select_statement_cols):
-    aggregations = {}
+    aggregations: dict[str, str] = {}
 
     def convert_dict_to_key(d):
         return json.dumps(d)
@@ -52,22 +53,23 @@ def is_operation(expression):
     return 'op' in expression
 
 
-def is_column(arg):
+def is_column(arg) -> bool:
     return isinstance(arg, str)
 
 
-def is_variable(arg):
+def is_variable(arg) -> bool:
     return isinstance(arg, dict) and 'variable' in arg
 
 
-def is_literal(arg):
+def is_literal(arg) -> bool:
     return (isinstance(arg, dict) and "literal" in arg) or isinstance(arg, int)
 
 
-def unpack_literal_value(arg):
+def unpack_literal_value(arg) -> Union[int, str]:
     if isinstance(arg, dict) and "literal" in arg:
         return arg["literal"]
     return arg
+
 
 def unpack_op_args(expression):
     return expression['op'], expression['args']
@@ -78,8 +80,8 @@ class ParsedQuery:
     select_statements: list
     where_conditions: dict[Any, Any]
     group_by_columns: list
-    aggregations: dict
-    post_aggregations: list
+    aggregate_expressions: dict
+    post_aggregate_expressions: list
 
     @staticmethod
     def parse_from_sql(sql_statement):
@@ -87,12 +89,12 @@ class ParsedQuery:
         select_statements = [column['value'] for column in listwrap(parsed.get('select'))]
         where_conditions = parsed.get('where', {})
         group_by_columns = [column['value'] for column in listwrap(parsed.get('groupby'))]
-        aggregations, post_aggregations = extract_aggregations(select_statements)
+        aggregate_expressions, post_aggregate_expressions = extract_aggregations(select_statements)
 
         return ParsedQuery(
             select_statements=select_statements,
             where_conditions=where_conditions,
             group_by_columns=group_by_columns,
-            aggregations=aggregations,
-            post_aggregations=post_aggregations
+            aggregate_expressions=aggregate_expressions,
+            post_aggregate_expressions=post_aggregate_expressions
         )
