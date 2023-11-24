@@ -1,7 +1,5 @@
 import logging
-import math
 import time
-import timeit
 
 from pyroaring import BitMap  # type: ignore
 
@@ -10,19 +8,8 @@ from aggregate_buffer import AggregateBuffer
 from aggregator import Aggregator
 from parse_helpers import ParsedQuery
 from common_utils import map_reduce_op
+from result_set import ResultSet
 from segment import Segment
-
-
-class ResultSet:
-    def __init__(self):
-        self._results = []
-
-    def append(self, row):
-        self._results.append(row)
-
-    def get_results(self):
-        return self._results
-
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +21,7 @@ class SegmentQueryProcessor:
         self.aggregators: list[Aggregator] = []
         self.finalize_values = True
 
-    def process_query(self) -> list:
+    def process_query(self) -> ResultSet:
         logger.info("[process_query] Filtering data")
         filter_bitmap = self._convert_to_bitmap(self.parsed_query.where_conditions)
         logger.info("[process_query] Aggregating data")
@@ -44,7 +31,7 @@ class SegmentQueryProcessor:
         self.perform_aggregation(self.parsed_query.group_by_columns, filter_bitmap)
         logger.info("[process_query] Performing Post-aggregation")
         result_set = self.perform_post_aggregation(aggregate_buffer)
-        return result_set.get_results()
+        return result_set
 
     def resolve_aggregation_expression(self, index, expression):
         if parse_helpers.is_literal(expression):
@@ -111,7 +98,7 @@ class SegmentQueryProcessor:
                 op, args = parse_helpers.unpack_op_args(select_expression)
                 resolved_expression = self.resolve_aggregation_expression(index, args[0])
                 aggregator.record(aggregation_key, resolved_expression)
-        print('aggregation time:', time.time() - agg_start_time)
+        logger.debug('aggregation time:', time.time() - agg_start_time)
 
     def build_aggregators(self, aggregate_buffer: AggregateBuffer):
         aggregators = []
@@ -130,7 +117,7 @@ class SegmentQueryProcessor:
 
         key_name_to_idx_map = {group_by_column: idx for idx, group_by_column in enumerate(group_by_columns)}
 
-        result_set = ResultSet()
+        result_set = ResultSet(columns=self.parsed_query.output_columns)
 
         for keys, values in aggregate_buffer.get_results().items():
             if self.finalize_values:
@@ -187,7 +174,7 @@ class SegmentQueryProcessor:
                 # Case 4: column_lhs = column_rhs
                 raise NotImplementedError("Handling comparison between two columns is not implemented yet.")
         else:
-            raise ValueError(f"Unsupported operation: {op}")
+            raise NotImplementedError(f"Operation not supported: {op}")
 
     def _empty_bitmap(self, value: bool = False) -> BitMap:
         if value:

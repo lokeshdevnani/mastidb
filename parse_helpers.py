@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Union
 
-from mo_sql_parsing import parse, normal_op
+from mo_sql_parsing import parse, normal_op, format
 
 
 def listwrap(value):
@@ -44,7 +44,7 @@ def extract_aggregations(select_statement_cols):
         else:
             return node
 
-    post_aggregations = [process_node(select_col) for select_col in select_statement_cols]
+    post_aggregations = [process_node(select_col['value']) for select_col in select_statement_cols]
 
     return get_aggregation_id_map(), post_aggregations
 
@@ -75,6 +75,26 @@ def unpack_op_args(expression):
     return expression['op'], expression['args']
 
 
+def unparse(input_expression):
+    def format_parsed_sql(input_dict):
+        result = {}
+
+        if 'op' in input_dict and 'args' in input_dict:
+            op, args = input_dict['op'], input_dict['args']
+            result[op] = args
+            for arg in args:
+                if isinstance(arg, dict):
+                    result.update(format_parsed_sql(arg))
+        else:
+            return input_dict
+        return result
+    return format(format_parsed_sql(input_expression))
+
+
+def _get_output_cols(select_cols):
+    return [select_col.get('name', unparse(select_col['value'])) for select_col in select_cols]
+
+
 @dataclass
 class ParsedQuery:
     select_statements: list
@@ -82,11 +102,12 @@ class ParsedQuery:
     group_by_columns: list
     aggregate_expressions: dict
     post_aggregate_expressions: list
+    output_columns: list[str]
 
     @staticmethod
     def parse_from_sql(sql_statement):
         parsed = parse(sql_statement, calls=normal_op)
-        select_statements = [column['value'] for column in listwrap(parsed.get('select'))]
+        select_statements = listwrap(parsed.get('select'))
         where_conditions = parsed.get('where', {})
         group_by_columns = [column['value'] for column in listwrap(parsed.get('groupby'))]
         aggregate_expressions, post_aggregate_expressions = extract_aggregations(select_statements)
@@ -96,5 +117,6 @@ class ParsedQuery:
             where_conditions=where_conditions,
             group_by_columns=group_by_columns,
             aggregate_expressions=aggregate_expressions,
-            post_aggregate_expressions=post_aggregate_expressions
+            post_aggregate_expressions=post_aggregate_expressions,
+            output_columns=_get_output_cols(select_statements)
         )
