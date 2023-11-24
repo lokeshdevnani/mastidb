@@ -91,14 +91,13 @@ class SegmentQueryProcessor:
 
     def perform_aggregation(self, group_by_columns: list[str], bitmap: BitMap):
         agg_start_time = time.time()
-        aggregate_expressions: list[dict] = list(self.parsed_query.aggregate_expressions.values())
+        logger.info('aggregation fetch time: %s', str(time.time() - agg_start_time))
         for index in bitmap:
             aggregation_key = self.aggregation_key_for_index(group_by_columns, index)
-            for aggregator, select_expression in zip(self.aggregators, aggregate_expressions):
-                op, args = parse_helpers.unpack_op_args(select_expression)
-                resolved_expression = self.resolve_aggregation_expression(index, args[0])
+            for aggregator in self.aggregators:
+                resolved_expression = self.resolve_aggregation_expression(index, aggregator.expression_args[0])
                 aggregator.record(aggregation_key, resolved_expression)
-        logger.debug('aggregation time:', time.time() - agg_start_time)
+        logger.info('aggregation time: %s', time.time() - agg_start_time)
 
     def build_aggregators(self, aggregate_buffer: AggregateBuffer):
         aggregators = []

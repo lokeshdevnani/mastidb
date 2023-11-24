@@ -5,10 +5,11 @@ from aggregate_functions import AggregationFunction, AggregationFunctionSum, Agg
 
 
 class Aggregator:
-    def __init__(self, aggregate_buffer, aggregation_function, value_idx):
+    def __init__(self, aggregate_buffer, aggregation_function, value_idx, expression_args):
         self.aggregate_buffer: AggregateBuffer = aggregate_buffer
         self.aggregation_function: AggregationFunction = aggregation_function
         self.value_idx = value_idx
+        self.expression_args = expression_args
 
     def record(self, aggregation_key: tuple, value):
         current = self.aggregate_buffer.get(aggregation_key, self.value_idx)
@@ -23,16 +24,15 @@ class Aggregator:
 
     @staticmethod
     def create_from_expression(expression, aggregate_buffer, value_idx):
-        agg_function_cls = Aggregator.find_aggregation_function(expression)
-        return Aggregator(
-            aggregate_buffer=aggregate_buffer,
-            aggregation_function=agg_function_cls(),
-            value_idx=value_idx
-        )
+        op, args = parse_helpers.unpack_op_args(expression)
+        agg_function_cls = Aggregator.find_aggregation_function(op)
+        return Aggregator(aggregate_buffer=aggregate_buffer,
+                          aggregation_function=agg_function_cls(),
+                          value_idx=value_idx,
+                          expression_args=args)
 
     @staticmethod
-    def find_aggregation_function(expression):
-        op, args = parse_helpers.unpack_op_args(expression)
+    def find_aggregation_function(op):
         if op == 'sum':
             return AggregationFunctionSum
         elif op == 'count':
@@ -42,4 +42,4 @@ class Aggregator:
             return AggregationFunctionAvg
         else:
             raise NotImplementedError("Only aggregations are supported on a root level of SELECT statement. "
-                                      f"Unsupported operation: {op}. Statement: {expression}")
+                                      f"Unsupported operation: {op}")

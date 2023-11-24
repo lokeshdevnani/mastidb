@@ -1,5 +1,6 @@
 import mmap
 
+
 class Fetcher:
     def __init__(self, file):
         raise NotImplementedError()
@@ -7,12 +8,14 @@ class Fetcher:
     def fetch(self, start, end) -> bytes:
         raise NotImplementedError()
 
+
 class MmapFetcher:
     def __init__(self, file):
         self.mm = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
 
     def fetch(self, start, end):
         return self.mm[start:end]
+
 
 class FileSeekFetcher:
     def __init__(self, file):
