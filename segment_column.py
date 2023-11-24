@@ -55,7 +55,7 @@ class SegmentColumn:
         data_accessor.write_metadata(metadata_binary)
         data_accessor.write(data_binary)
 
-        return SegmentColumn.load(data_accessor)
+        return SegmentColumn.load(data_accessor.open("rb"))
 
     @staticmethod
     def encode_column(column_data: list) -> Tuple[dict, list, list]:

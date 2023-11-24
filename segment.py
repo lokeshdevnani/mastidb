@@ -1,5 +1,5 @@
 import pandas as pd
-from pyroaring import BitMap
+from pyroaring import BitMap  # type: ignore
 
 from common_utils import find_column_files, ensure_directory_exists
 from data_accessor import DataAccessor
@@ -8,9 +8,7 @@ import logging
 
 from segment_column_metadata import SegmentColumnType
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
 
 class Segment:
     segment_columns: dict[str, SegmentColumn]
@@ -27,7 +25,7 @@ class Segment:
 
         for column in df.columns:
             logger.info(f"[create] Building column: {column}")
-            segment_columns[column] = SegmentColumn.create(DataAccessor(f"{data_dir}/{column}"),
+            segment_columns[column] = SegmentColumn.create(DataAccessor(f"{data_dir}/{column}").open('wb'),
                                                            df[column].tolist())
         logger.info("[create] Segment created")
         return Segment(segment_columns)
@@ -40,7 +38,7 @@ class Segment:
         segment_columns: dict[str, SegmentColumn] = {}
         for column in column_names:
             logger.info(f"[load] Loading column: {column}")
-            segment_columns[column] = SegmentColumn.load(DataAccessor(f"{data_dir}/{column}"))
+            segment_columns[column] = SegmentColumn.load(DataAccessor(f"{data_dir}/{column}").open())
         return Segment(segment_columns)
 
     def get_column(self, column_name) -> SegmentColumn:
@@ -56,8 +54,8 @@ class Segment:
         column = next(iter(self.segment_columns.values()))
         return column.metadata.row_count
 
-    def get_value_for_index(self, column: str, index: int):
-        column = self.get_column(column)
+    def get_value_for_index(self, column_name: str, index: int):
+        column = self.get_column(column_name)
         if column.metadata.type == SegmentColumnType.DIMENSION:
             dict_id = column.get_dictionary_id_for_index(index)
             return column.get_dictionary_value_for_dictionary_id(dict_id)
