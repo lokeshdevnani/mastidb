@@ -1,5 +1,7 @@
 import logging
+import math
 import time
+from typing import Union, Any, Tuple, Dict
 
 from pyroaring import BitMap  # type: ignore
 
@@ -27,8 +29,9 @@ class SegmentQueryProcessor:
         logger.info("[process_query] Aggregating data")
         aggregate_buffer = AggregateBuffer(value_length=len(self.parsed_query.aggregate_expressions))
         self.aggregators = self.build_aggregators(aggregate_buffer)
+        self.set_default_values_in_aggregator_buffer(aggregate_buffer)
         logger.info("[process_query] Performing Aggregation")
-        self.perform_aggregation(self.parsed_query.group_by_columns, filter_bitmap)
+        self.perform_aggregation(self.parsed_query.group_by_columns, filter_bitmap, aggregate_buffer)
         logger.info("[process_query] Performing Post-aggregation")
         result_set = self.perform_post_aggregation(aggregate_buffer)
         return result_set
@@ -38,19 +41,15 @@ class SegmentQueryProcessor:
             return parse_helpers.unpack_literal_value(expression)
 
         if parse_helpers.is_column(expression):
-            # If a column is used more than once in select expressions, it will be fetched twice
-            # TODO: Optimise this by computing dependencies first
             val = self.segment.get_value_for_index(expression, index)
-            # if len(val) == 0:
-            #     return 0
-            #
-            # val = float(val)
-            # if math.isnan(val):
-            #     return 0
+            val = float(val)
+            if math.isnan(val):
+                return 0
 
             return int(val)
-
-        if parse_helpers.is_operation(expression):
+        elif parse_helpers.is_literal(expression):
+            return parse_helpers.unpack_literal_value(expression)
+        elif parse_helpers.is_operation(expression):
             op, args = parse_helpers.unpack_op_args(expression)
             if op == 'add':
                 return map_reduce_op(args,
@@ -58,12 +57,14 @@ class SegmentQueryProcessor:
                                      lambda a, b: a + b)
             else:
                 raise NotImplementedError(f"Can't resolve op={op} for {expression}")
+        else:
+            raise NotImplementedError(f"Unknown type: {expression}")
 
-    def resolve_post_aggregation_expression(self, expression, variable_values, key_name_to_idx_map, decoded_keys):
-        if parse_helpers.is_literal(expression):
-            return parse_helpers.unpack_literal_value(expression)
-
-        if parse_helpers.is_column(expression):
+    def resolve_post_aggregation_expression(self, expression: Union[str, Dict], variable_values: list[Any],
+                                            key_name_to_idx_map: dict[str, int], decoded_keys: Tuple[Any, ...]):
+        # Same as calling parse_helpers.is_column(expression),
+        # but calling inline helps the compiler with strict typing the expression inside this block
+        if isinstance(expression, str):
             # This happens when a 'group'ed column is `selected` in post_aggregation expression.
             # In this case, we just return the decoded dictionary values for that aggregated row.
             if expression in key_name_to_idx_map:
@@ -71,14 +72,14 @@ class SegmentQueryProcessor:
                 return decoded_keys[key_idx]
             else:
                 raise ValueError(f"Unsupported operation in post-aggregation stage: {expression}")
-
-        if parse_helpers.is_variable(expression):
+        elif parse_helpers.is_variable(expression):
             # These are variables which were resolved/computed during aggregation phase
             # E.g. { 'variable': 'p2' } => 2
             variable_values_index = int(expression['variable'][1:])
             return variable_values[variable_values_index]
-
-        if parse_helpers.is_operation(expression):
+        elif parse_helpers.is_literal(expression):
+            return parse_helpers.unpack_literal_value(expression)
+        elif parse_helpers.is_operation(expression):
             op, args = parse_helpers.unpack_op_args(expression)
             recurse_fn = lambda arg: self.resolve_post_aggregation_expression(arg, variable_values, key_name_to_idx_map,
                                                                               decoded_keys)
@@ -88,18 +89,28 @@ class SegmentQueryProcessor:
                 return map_reduce_op(args, recurse_fn, lambda a, b: a / b)
             else:
                 raise NotImplementedError(f"Can't resolve op={op} for {expression}")
+        else:
+            raise NotImplementedError("Unknown state in resolve_post_aggregation_expression")
 
-    def perform_aggregation(self, group_by_columns: list[str], bitmap: BitMap):
+    def perform_aggregation(self, group_by_columns: list[str], bitmap: BitMap, aggregate_buffer: AggregateBuffer):
         agg_start_time = time.time()
         logger.info('aggregation fetch time: %s', str(time.time() - agg_start_time))
-        for index in bitmap:
+
+        for list_index, index in enumerate(bitmap):
             aggregation_key = self.aggregation_key_for_index(group_by_columns, index)
+            aggregate_buffer.init_empty_buffer_for_keys(keys=aggregation_key)
             for aggregator in self.aggregators:
                 resolved_expression = self.resolve_aggregation_expression(index, aggregator.expression_args[0])
                 aggregator.record(aggregation_key, resolved_expression)
         logger.info('aggregation time: %s', time.time() - agg_start_time)
 
-    def build_aggregators(self, aggregate_buffer: AggregateBuffer):
+    def set_default_values_in_aggregator_buffer(self, aggregate_buffer: AggregateBuffer) -> None:
+        default_aggregation_row = []
+        for aggregator in self.aggregators:
+            default_aggregation_row.append(aggregator.aggregation_function.initial_value)
+        aggregate_buffer.set_default_value(default_aggregation_row)
+
+    def build_aggregators(self, aggregate_buffer: AggregateBuffer) -> list[Aggregator]:
         aggregators = []
         for select_idx, select_expression in enumerate(self.parsed_query.aggregate_expressions.values()):
             aggregators.append(Aggregator.create_from_expression(select_expression, aggregate_buffer, select_idx))
@@ -108,7 +119,7 @@ class SegmentQueryProcessor:
     def perform_post_aggregation(self, aggregate_buffer: AggregateBuffer) -> ResultSet:
         group_by_columns = self.parsed_query.group_by_columns
 
-        def transform_fn(keys: tuple):
+        def transform_fn(keys: Tuple[int, ...]) -> Tuple[Any, ...]:
             return tuple(
                 self.segment.get_column(group_by_columns[i]).get_dictionary_value_for_dictionary_id(keys[i])
                 for i in range(len(group_by_columns))

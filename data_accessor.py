@@ -33,7 +33,7 @@ class DataAccessor:
         self.file = None
         self.fetcher = None
 
-    def open(self, mode='rb'):
+    def open(self, mode='rb') -> 'DataAccessor':
         self.file = open(self.filepath, mode)
         if mode == 'rb':
             self.fetcher = MmapFetcher(self.file)
@@ -50,7 +50,7 @@ class DataAccessor:
         self.file.seek(0)
         return self.file.read()
 
-    def write(self, binary_data):
+    def write(self, binary_data: bytes):
         self.file.write(binary_data)
         print("Written to filepath: " + self.filepath)
 
@@ -58,7 +58,7 @@ class DataAccessor:
         with open(self.filepath_metadata, 'rb') as file:
             return file.read()
 
-    def write_metadata(self, binary_data):
+    def write_metadata(self, binary_data: bytes) -> None:
         with open(self.filepath_metadata, 'wb') as file:
             file.write(binary_data)
         print("Written to filepath: " + self.filepath_metadata)

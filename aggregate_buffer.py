@@ -1,21 +1,28 @@
+import copy
+from typing import Tuple, Any, List
+
+
 class AggregateBuffer:
-    _buffer: dict[tuple, list]
+    _buffer: dict[Tuple[int, ...], list[Any]]
+    _default_value: list[Any]
 
     def __init__(self, value_length: int):
         self.value_length = value_length
-        self._buffer = {}
+        self._buffer: dict[Tuple[int, ...], list[Any]] = {}
+        self.default_value: List[Any] = []
 
-    def get(self, keys: tuple, value_index: int):
-        if keys in self._buffer:
-            return self._buffer[keys][value_index]
+    def get(self, keys: Tuple[int, ...], value_index: int):
+        return self._buffer[keys][value_index]
 
-        return None
-
-    def set(self, keys: tuple, value_index, value):
-        if keys not in self._buffer:
-            self._buffer[keys] = [0] * self.value_length
-
+    def set(self, keys: Tuple[int, ...], value_index: int, value: Any):
         self._buffer[keys][value_index] = value
+
+    def init_empty_buffer_for_keys(self, keys: Tuple[int, ...]):
+        if keys not in self._buffer:
+            self._buffer[keys] = copy.copy(self.default_value)
+
+    def set_default_value(self, default_value: list[Any]):
+        self.default_value = default_value
 
     def get_results(self):
         return self._buffer
