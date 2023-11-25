@@ -36,24 +36,22 @@ class SegmentQueryProcessor:
         result_set = self.perform_post_aggregation(aggregate_buffer)
         return result_set
 
-    def resolve_aggregation_expression(self, index, expression):
-        if parse_helpers.is_literal(expression):
-            return parse_helpers.unpack_literal_value(expression)
-
-        if parse_helpers.is_column(expression):
-            val = self.segment.get_value_for_index(expression, index)
-            val = float(val)
-            if math.isnan(val):
+    def resolve_aggregation_expression(self, index: int, expression: Union[str, dict[str, Any]],
+                                       value_matrix: Dict[str, list[Union[str, int]]]) -> Union[int, str]:
+        if isinstance(expression, str):
+            val = value_matrix[expression][index]
+            float_val: float = float(val)
+            if math.isnan(float_val):
                 return 0
 
-            return int(val)
+            return int(float_val)
         elif parse_helpers.is_literal(expression):
             return parse_helpers.unpack_literal_value(expression)
         elif parse_helpers.is_operation(expression):
             op, args = parse_helpers.unpack_op_args(expression)
             if op == 'add':
                 return map_reduce_op(args,
-                                     lambda arg: self.resolve_aggregation_expression(index, arg),
+                                     lambda arg: self.resolve_aggregation_expression(index, arg, value_matrix),
                                      lambda a, b: a + b)
             else:
                 raise NotImplementedError(f"Can't resolve op={op} for {expression}")
@@ -94,13 +92,27 @@ class SegmentQueryProcessor:
 
     def perform_aggregation(self, group_by_columns: list[str], bitmap: BitMap, aggregate_buffer: AggregateBuffer):
         agg_start_time = time.time()
+        value_matrix: Dict[str, list[Union[str, int]]] = {}
+        # Materialize non-group-by columns - Only required coz we don't have metric columns
+        # group by columns will be materialized post-aggregation.
+        cols_to_early_materialize = list(set(self.parsed_query.dependent_columns) - set(group_by_columns))
+
         logger.info('aggregation fetch time: %s', str(time.time() - agg_start_time))
 
         for list_index, index in enumerate(bitmap):
-            aggregation_key = self.aggregation_key_for_index(group_by_columns, index)
+            # value matrix population
+            for col in self.parsed_query.dependent_columns:
+                value_matrix[col] = [self.segment.get_column(col).get_dictionary_id_for_index(index)]
+
+            for col in cols_to_early_materialize:
+                value_matrix[col] = [self.segment.get_value_for_index(col, index)]
+
+            aggregation_key = self.aggregation_key_for_index_from_value_matrix(group_by_columns, 0,
+                                                                               value_matrix=value_matrix)
             aggregate_buffer.init_empty_buffer_for_keys(keys=aggregation_key)
             for aggregator in self.aggregators:
-                resolved_expression = self.resolve_aggregation_expression(index, aggregator.expression_args[0])
+                resolved_expression = self.resolve_aggregation_expression(0, aggregator.expression_args[0],
+                                                                          value_matrix=value_matrix)
                 aggregator.record(aggregation_key, resolved_expression)
         logger.info('aggregation time: %s', time.time() - agg_start_time)
 
@@ -143,7 +155,12 @@ class SegmentQueryProcessor:
             result_set.append(result_row)
         return result_set
 
-    def aggregation_key_for_index(self, group_by_columns: list[str], index: int) -> tuple:
+    @staticmethod
+    def aggregation_key_for_index_from_value_matrix(group_by_columns: list[str], index: int,
+                                                    value_matrix: dict[str, list]) -> Tuple[int, ...]:
+        return tuple(value_matrix[group_by_column_str][index] for group_by_column_str in group_by_columns)
+
+    def aggregation_key_for_index(self, group_by_columns: list[str], index: int) -> Tuple[int, ...]:
         group_keys = []
         for group_by_column_str in group_by_columns:
             group_by_column = self.segment.get_column(group_by_column_str)

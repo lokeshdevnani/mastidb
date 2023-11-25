@@ -1,5 +1,6 @@
 import logging
 import struct
+from functools import lru_cache
 from typing import Tuple
 
 from pyroaring import BitMap  # type: ignore
@@ -34,7 +35,7 @@ class SegmentColumn:
     metadata: SegmentColumnMetadata
     data_accessor: DataAccessor
 
-    def __init__(self, metadata, data_accessor):
+    def __init__(self, metadata: SegmentColumnMetadata, data_accessor: DataAccessor):
         self.metadata = metadata
         self.data_accessor = data_accessor
 
@@ -74,7 +75,7 @@ class SegmentColumn:
         return dictionary, encoded_list, bitmaps
 
     @staticmethod
-    def create_bitmap_indexes(encoded_array: list[int], cardinality: int):
+    def create_bitmap_indexes(encoded_array: list[int], cardinality: int) -> list[BitMap]:
         grouped_indexes: list[list[int]] = [[] for _ in range(cardinality)]
 
         for index, encoded_value in enumerate(encoded_array):
@@ -168,9 +169,9 @@ class SegmentColumn:
         return self.get_bitmap(dictionary_id)
 
     def get_dictionary_value_for_dictionary_id(self, dictionary_id) -> str:
+        start = self.metadata.offset_dictionary_offsets + dictionary_id * 4
         val_offset_start, val_offset_end = SerializationUtils.deserialize_intlist(
-            self.data_accessor.fetch(self.metadata.offset_dictionary_offsets + dictionary_id * 4,
-                                     self.metadata.offset_dictionary_offsets + dictionary_id * 4 + 8),
+            self.data_accessor.fetch(start, start + 8),
             2
         )
         return SerializationUtils.deserialize_string(
@@ -182,6 +183,14 @@ class SegmentColumn:
         encoded_value = SerializationUtils.deserialize_int(
             self.data_accessor.fetch(self.metadata.offset_list + index * 4,
                                      self.metadata.offset_list + index * 4 + 4)
+        )
+        return encoded_value
+
+    def get_dictionary_id_for_index_batch(self, start, end) -> Tuple[int, ...]:
+        encoded_value = SerializationUtils.deserialize_intlist(
+            self.data_accessor.fetch(self.metadata.offset_list + start * 4,
+                                     self.metadata.offset_list + end * 4 + 4),
+            (end-start+1)
         )
         return encoded_value
 

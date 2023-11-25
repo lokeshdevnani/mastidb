@@ -1,3 +1,5 @@
+from typing import Iterable
+
 import pandas as pd
 from pyroaring import BitMap  # type: ignore
 
@@ -57,10 +59,20 @@ class Segment:
     def get_value_for_index(self, column_name: str, index: int):
         column = self.get_column(column_name)
         if column.metadata.type == SegmentColumnType.DIMENSION:
-            dict_id = column.get_dictionary_id_for_index(index)
-            return column.get_dictionary_value_for_dictionary_id(dict_id)
+            dict_id = column.get_dictionary_id_for_index(index) # takes 2s on 1.3M rows
+            return column.get_dictionary_value_for_dictionary_id(dict_id) # takes 3.2s on 1.3M rows
 
         raise NotImplementedError(f"Unknown column type: {column.metadata.type}")
+
+    def get_dictionary_ids_for_index_batch(self, column_name: str, indexes: BitMap):
+        if len(indexes) == 0:
+            return []
+
+        column = self.get_column(column_name)
+        # we can assume that the indexes is sorted
+        start, end = indexes[0], indexes[-1]
+        dict_id_list_in_range = column.get_dictionary_id_for_index_batch(start, end) # takes 2s on 1.3M rows
+        return [dict_id_list_in_range[i - start] for i in indexes]
 
 
 if __name__ == '__main__':
