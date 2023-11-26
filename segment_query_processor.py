@@ -8,6 +8,7 @@ from pyroaring import BitMap  # type: ignore
 import parse_helpers
 from aggregate_buffer import AggregateBuffer
 from aggregator import Aggregator
+from bitmap_utils import break_bitmap_into_chunks
 from parse_helpers import ParsedQuery
 from common_utils import map_reduce_op
 from result_set import ResultSet
@@ -91,30 +92,42 @@ class SegmentQueryProcessor:
             raise NotImplementedError("Unknown state in resolve_post_aggregation_expression")
 
     def perform_aggregation(self, group_by_columns: list[str], bitmap: BitMap, aggregate_buffer: AggregateBuffer):
-        agg_start_time = time.time()
-        value_matrix: Dict[str, list[Union[str, int]]] = {}
         # Materialize non-group-by columns - Only required coz we don't have metric columns
         # group by columns will be materialized post-aggregation.
         cols_to_early_materialize = list(set(self.parsed_query.dependent_columns) - set(group_by_columns))
 
-        logger.info('aggregation fetch time: %s', str(time.time() - agg_start_time))
+        # batching strategy
+        bitmap_chunks = break_bitmap_into_chunks(bitmap, bitmap_density_threshold=2, chunk_size=100000)
+        logger.info('Breaking bitmap into chunk_count=%d', len(bitmap_chunks))
+        agg_start_time = time.time()
+        for bitmap_chunk in bitmap_chunks:
+            self.perform_aggregation_for_batch(group_by_columns, bitmap_chunk, aggregate_buffer,
+                                               cols_to_early_materialize)
+        logger.info('aggregation time: %s', time.time() - agg_start_time)
+
+    def perform_aggregation_for_batch(self, group_by_columns: list[str], bitmap: BitMap,
+                                      aggregate_buffer: AggregateBuffer, cols_to_early_materialize: list[str]):
+        value_matrix: Dict[str, list[Union[str, int]]] = {}
+        for col in self.parsed_query.dependent_columns:
+            value_matrix[col] = self.segment.get_dictionary_ids_for_index_batch(col, bitmap)
+
+        for col in cols_to_early_materialize:
+            col_obj = self.segment.get_column(col)
+            # Writing a batch version for this is quite difficult since -
+            #  dict_ids in a batch can lie in extremes of the entire dictionary.
+            #  Therefore, sequential IO scan for entire dict might get repeated for each batch
+            #  This isn't the case for indexes - since list indexes are sorted physically on disk.
+            value_matrix[col] = [col_obj.get_dictionary_value_for_dictionary_id(dict_id) for dict_id in
+                                 value_matrix[col]]
 
         for list_index, index in enumerate(bitmap):
-            # value matrix population
-            for col in self.parsed_query.dependent_columns:
-                value_matrix[col] = [self.segment.get_column(col).get_dictionary_id_for_index(index)]
-
-            for col in cols_to_early_materialize:
-                value_matrix[col] = [self.segment.get_value_for_index(col, index)]
-
-            aggregation_key = self.aggregation_key_for_index_from_value_matrix(group_by_columns, 0,
+            aggregation_key = self.aggregation_key_for_index_from_value_matrix(group_by_columns, list_index,
                                                                                value_matrix=value_matrix)
             aggregate_buffer.init_empty_buffer_for_keys(keys=aggregation_key)
             for aggregator in self.aggregators:
-                resolved_expression = self.resolve_aggregation_expression(0, aggregator.expression_args[0],
+                resolved_expression = self.resolve_aggregation_expression(list_index, aggregator.expression_args[0],
                                                                           value_matrix=value_matrix)
                 aggregator.record(aggregation_key, resolved_expression)
-        logger.info('aggregation time: %s', time.time() - agg_start_time)
 
     def set_default_values_in_aggregator_buffer(self, aggregate_buffer: AggregateBuffer) -> None:
         default_aggregation_row = []
