@@ -132,14 +132,14 @@ class ParsedQuery:
         parsed = parse(sql_statement, calls=normal_op)
         select_statements = listwrap(parsed.get('select'))
         where_conditions = parsed.get('where', {})
-        group_by_columns = [column['value'] for column in listwrap(parsed.get('groupby'))]
-        dependent_columns = get_dependent_columns(select_statements)
+        group_by_columns = listwrap(parsed.get('groupby'))
+        dependent_columns = get_dependent_columns(select_statements + group_by_columns)
         aggregate_expressions, post_aggregate_expressions = extract_aggregations(select_statements)
 
         return ParsedQuery(
             select_statements=select_statements,
             where_conditions=where_conditions,
-            group_by_columns=group_by_columns,
+            group_by_columns=[column['value'] for column in group_by_columns],
             aggregate_expressions=aggregate_expressions,
             post_aggregate_expressions=post_aggregate_expressions,
             dependent_columns=dependent_columns,
