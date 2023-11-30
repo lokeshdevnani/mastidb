@@ -1,0 +1,162 @@
+[
+  {
+    "Name": "Adele",
+    "Genre": "Pop",
+    "Nationality": "British",
+    "Albums Sold (millions)": 120,
+    "Monthly Listeners (millions)": 90,
+    "Awards Won": 15
+  },
+  {
+    "Name": "Kendrick Lamar",
+    "Genre": "Hip Hop",
+    "Nationality": "American",
+    "Albums Sold (millions)": 40,
+    "Monthly Listeners (millions)": 70,
+    "Awards Won": 12
+  },
+  {
+    "Name": "Ed Sheeran",
+    "Genre": "Pop",
+    "Nationality": "British",
+    "Albums Sold (millions)": 150,
+    "Monthly Listeners (millions)": 80,
+    "Awards Won": 10
+  },
+  {
+    "Name": "Beyoncé",
+    "Genre": "R&B",
+    "Nationality": "American",
+    "Albums Sold (millions)": 180,
+    "Monthly Listeners (millions)": 100,
+    "Awards Won": 20
+  },
+  {
+    "Name": "Taylor Swift",
+    "Genre": "Pop",
+    "Nationality": "American",
+    "Albums Sold (millions)": 200,
+    "Monthly Listeners (millions)": 95,
+    "Awards Won": 25
+  },
+  {
+    "Name": "Drake",
+    "Genre": "Hip Hop",
+    "Nationality": "Canadian",
+    "Albums Sold (millions)": 170,
+    "Monthly Listeners (millions)": 85,
+    "Awards Won": 18
+  },
+  {
+    "Name": "Shakira",
+    "Genre": "Latin Pop",
+    "Nationality": "Colombian",
+    "Albums Sold (millions)": 75,
+    "Monthly Listeners (millions)": 60,
+    "Awards Won": 16
+  },
+  {
+    "Name": "Rihanna",
+    "Genre": "R&B",
+    "Nationality": "Barbadian",
+    "Albums Sold (millions)": 230,
+    "Monthly Listeners (millions)": 110,
+    "Awards Won": 22
+  },
+  {
+    "Name": "Bruno Mars",
+    "Genre": "Pop",
+    "Nationality": "American",
+    "Albums Sold (millions)": 100,
+    "Monthly Listeners (millions)": 75,
+    "Awards Won": 8
+  },
+  {
+    "Name": "Dua Lipa",
+    "Genre": "Pop",
+    "Nationality": "British",
+    "Albums Sold (millions)": 30,
+    "Monthly Listeners (millions)": 50,
+    "Awards Won": 5
+  },
+  {
+    "Name": "Jay-Z",
+    "Genre": "Hip Hop",
+    "Nationality": "American",
+    "Albums Sold (millions)": 50,
+    "Monthly Listeners (millions)": 40,
+    "Awards Won": 21
+  },
+  {
+    "Name": "Adele",
+    "Genre": "Pop",
+    "Nationality": "British",
+    "Albums Sold (millions)": 120,
+    "Monthly Listeners (millions)": 90,
+    "Awards Won": 15
+  },
+  {
+    "Name": "Lady Gaga",
+    "Genre": "Pop",
+    "Nationality": "American",
+    "Albums Sold (millions)": 150,
+    "Monthly Listeners (millions)": 85,
+    "Awards Won": 12
+  },
+  {
+    "Name": "Justin Bieber",
+    "Genre": "Pop",
+    "Nationality": "Canadian",
+    "Albums Sold (millions)": 180,
+    "Monthly Listeners (millions)": 95,
+    "Awards Won": 10
+  },
+  {
+    "Name": "Eminem",
+    "Genre": "Hip Hop",
+    "Nationality": "American",
+    "Albums Sold (millions)": 220,
+    "Monthly Listeners (millions)": 80,
+    "Awards Won": 23
+  },
+  {
+    "Name": "Ariana Grande",
+    "Genre": "Pop",
+    "Nationality": "American",
+    "Albums Sold (millions)": 90,
+    "Monthly Listeners (millions)": 110,
+    "Awards Won": 9
+  },
+  {
+    "Name": "Coldplay",
+    "Genre": "Alternative",
+    "Nationality": "British",
+    "Albums Sold (millions)": 80,
+    "Monthly Listeners (millions)": 70,
+    "Awards Won": 14
+  },
+  {
+    "Name": "The Weeknd",
+    "Genre": "R&B",
+    "Nationality": "Canadian",
+    "Albums Sold (millions)": 60,
+    "Monthly Listeners (millions)": 75,
+    "Awards Won": 11
+  },
+  {
+    "Name": "Billie Eilish",
+    "Genre": "Pop",
+    "Nationality": "American",
+    "Albums Sold (millions)": 40,
+    "Monthly Listeners (millions)": 60,
+    "Awards Won": 7
+  },
+  {
+    "Name": "Elton John",
+    "Genre": "Pop",
+    "Nationality": "British",
+    "Albums Sold (millions)": 300,
+    "Monthly Listeners (millions)": 40,
+    "Awards Won": 28
+  }
+]
