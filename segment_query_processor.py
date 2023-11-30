@@ -1,3 +1,5 @@
+import asyncio
+import concurrent.futures
 import logging
 import math
 import time
@@ -91,6 +93,31 @@ class SegmentQueryProcessor:
         else:
             raise NotImplementedError("Unknown state in resolve_post_aggregation_expression")
 
+    async def producer(self, queue: asyncio.Queue, bitmap_chunks: list[BitMap], cols_to_early_materialize: list[str]):
+        for bitmap_chunk in bitmap_chunks:
+            value_matrix = self.generate_value_matrix(bitmap_chunk, cols_to_early_materialize)
+            await queue.put((value_matrix, bitmap_chunk))
+        # await queue.put((None, None))
+
+    async def consumer(self, queue: asyncio.Queue, group_by_columns: list[str], aggregate_buffer: AggregateBuffer):
+        while True:
+            value_matrix, bitmap_chunk = await queue.get()
+            if value_matrix is None:
+                break
+
+            self.perform_aggregation_for_batch(group_by_columns, bitmap_chunk, aggregate_buffer, value_matrix)
+
+    async def monitor_queue_size(self, queue):
+        while True:
+            print(f"Queue Size: {queue.qsize()}")
+            await asyncio.sleep(0.01)
+
+    def divide_list_into_slices(self, lst, k):
+        slice_length, remainder = divmod(len(lst), k)
+        slices = [lst[i * slice_length:(i + 1) * slice_length] for i in range(k - 1)]
+        slices.append(lst[(k - 1) * slice_length:])
+        return slices
+
     def perform_aggregation(self, group_by_columns: list[str], bitmap: BitMap, aggregate_buffer: AggregateBuffer):
         # Materialize non-group-by columns - Only required coz we don't have metric columns
         # group by columns will be materialized post-aggregation.
@@ -100,13 +127,27 @@ class SegmentQueryProcessor:
         bitmap_chunks = break_bitmap_into_chunks(bitmap, bitmap_density_threshold=2, chunk_size=100000)
         logger.info('Breaking bitmap into chunk_count=%d', len(bitmap_chunks))
         agg_start_time = time.time()
-        for bitmap_chunk in bitmap_chunks:
-            self.perform_aggregation_for_batch(group_by_columns, bitmap_chunk, aggregate_buffer,
-                                               cols_to_early_materialize)
+
+        async def async_runner():
+            queue = asyncio.Queue()
+            bitmap_chunks_slices = self.divide_list_into_slices(bitmap_chunks, 1)
+            print('asdf')
+            with concurrent.futures.ProcessPoolExecutor() as executor:
+                consumer_task = asyncio.create_task(self.consumer(queue, group_by_columns, aggregate_buffer))
+                producer_tasks = [asyncio.create_task(self.producer(queue, bitmap_chunk_slice, cols_to_early_materialize))
+                                  for bitmap_chunk_slice in bitmap_chunks_slices]
+                await asyncio.gather(*producer_tasks)
+                await queue.put((None, None))
+                await asyncio.gather(consumer_task)
+
+        asyncio.run(async_runner())
+
+        # for bitmap_chunk in bitmap_chunks:
+        #     value_matrix = self.generate_value_matrix(bitmap, cols_to_early_materialize)
+        #     self.perform_aggregation_for_batch(group_by_columns, bitmap_chunk, aggregate_buffer, value_matrix)
         logger.info('aggregation time: %s', time.time() - agg_start_time)
 
-    def perform_aggregation_for_batch(self, group_by_columns: list[str], bitmap: BitMap,
-                                      aggregate_buffer: AggregateBuffer, cols_to_early_materialize: list[str]):
+    def generate_value_matrix(self, bitmap: BitMap, cols_to_early_materialize: list[str]):
         value_matrix: Dict[str, list[Union[str, int]]] = {}
         for col in self.parsed_query.dependent_columns:
             value_matrix[col] = self.segment.get_dictionary_ids_for_index_batch(col, bitmap)
@@ -119,7 +160,11 @@ class SegmentQueryProcessor:
             #  This isn't the case for indexes - since list indexes are sorted physically on disk.
             value_matrix[col] = [col_obj.get_dictionary_value_for_dictionary_id(dict_id) for dict_id in
                                  value_matrix[col]]
+        return value_matrix
 
+    def perform_aggregation_for_batch(self, group_by_columns: list[str], bitmap: BitMap,
+                                      aggregate_buffer: AggregateBuffer,
+                                      value_matrix: Dict[str, list[Union[str, int]]]):
         for list_index, index in enumerate(bitmap):
             aggregation_key = self.aggregation_key_for_index_from_value_matrix(group_by_columns, list_index,
                                                                                value_matrix=value_matrix)
