@@ -101,12 +101,11 @@ class SegmentQueryProcessor:
         logger.info('Breaking bitmap into chunk_count=%d', len(bitmap_chunks))
         agg_start_time = time.time()
         for bitmap_chunk in bitmap_chunks:
-            self.perform_aggregation_for_batch(group_by_columns, bitmap_chunk, aggregate_buffer,
-                                               cols_to_early_materialize)
+            value_matrix = self.generate_value_matrix(bitmap_chunk, cols_to_early_materialize)
+            self.perform_aggregation_for_batch(group_by_columns, bitmap_chunk, aggregate_buffer, value_matrix)
         logger.info('aggregation time: %s', time.time() - agg_start_time)
 
-    def perform_aggregation_for_batch(self, group_by_columns: list[str], bitmap: BitMap,
-                                      aggregate_buffer: AggregateBuffer, cols_to_early_materialize: list[str]):
+    def generate_value_matrix(self, bitmap: BitMap, cols_to_early_materialize: list[str]):
         value_matrix: Dict[str, list[Union[str, int]]] = {}
         for col in self.parsed_query.dependent_columns:
             value_matrix[col] = self.segment.get_dictionary_ids_for_index_batch(col, bitmap)
@@ -119,8 +118,12 @@ class SegmentQueryProcessor:
             #  This isn't the case for indexes - since list indexes are sorted physically on disk.
             value_matrix[col] = [col_obj.get_dictionary_value_for_dictionary_id(dict_id) for dict_id in
                                  value_matrix[col]]
+        return value_matrix
 
-        for list_index, index in enumerate(bitmap):
+    def perform_aggregation_for_batch(self, group_by_columns: list[str], bitmap: BitMap,
+                                      aggregate_buffer: AggregateBuffer,
+                                      value_matrix: Dict[str, list[Union[str, int]]]):
+        for list_index, _ in enumerate(bitmap):
             aggregation_key = self.aggregation_key_for_index_from_value_matrix(group_by_columns, list_index,
                                                                                value_matrix=value_matrix)
             aggregate_buffer.init_empty_buffer_for_keys(keys=aggregation_key)
@@ -132,7 +135,7 @@ class SegmentQueryProcessor:
     def set_default_values_in_aggregator_buffer(self, aggregate_buffer: AggregateBuffer) -> None:
         default_aggregation_row = []
         for aggregator in self.aggregators:
-            default_aggregation_row.append(aggregator.aggregation_function.initial_value)
+            default_aggregation_row.append(aggregator.aggregation_function.get_initial_value())
         aggregate_buffer.set_default_value(default_aggregation_row)
 
     def build_aggregators(self, aggregate_buffer: AggregateBuffer) -> list[Aggregator]:
