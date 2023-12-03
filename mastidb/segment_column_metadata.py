@@ -23,9 +23,21 @@ class SegmentColumnMetadata:
 
     @staticmethod
     def load_from_serialized_data(serialized_data: bytes) -> 'SegmentColumnMetadata':
-        # Unpack the enum as an integer
+        # Unpack the data
         values: tuple = struct.unpack('i'*10, serialized_data)
-        return SegmentColumnMetadata(*values[:-1], type=SegmentColumnType(values[-1]))
+        # Create an instance using attribute names
+        return SegmentColumnMetadata(
+            version=values[0],
+            uniq_value_count=values[1],
+            row_count=values[2],
+            offset_dictionary_offsets=values[3],
+            offset_dictionary=values[4],
+            offset_list=values[5],
+            offset_bitmap_offsets=values[6],
+            offset_bitmaps_list=values[7],
+            end_offset=values[8],
+            type=SegmentColumnType(values[9])
+        )
 
     def serialize(self) -> bytes:
         # Pack the enum as an integer

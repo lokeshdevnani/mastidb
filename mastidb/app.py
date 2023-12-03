@@ -1,7 +1,7 @@
 #!/Library/Frameworks/Python.framework/Versions/3.9/bin/python3
 
 import time
-from mo_parsing import ParseException
+from mo_parsing import ParseException # type: ignore
 from pygments.lexers.sql import SqlLexer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, TextColumn

@@ -1,5 +1,6 @@
 import logging
 import click
+from segment import Segment
 
 logging.basicConfig(level=logging.WARN, format='[%(asctime)s] [%(name)s] [%(levelname)s] - %(message)s')
 
@@ -42,7 +43,6 @@ def console(data_dir):
     mastidb console --data-dir=/path/to/data
     """
     from app import MastiDBConsole
-    from segment import Segment
     click.echo(f"Launching MastiDB console with data directory: {data_dir}")
     segment = Segment.load(data_dir)
     MastiDBConsole(segment).run()
@@ -63,7 +63,6 @@ def ingest(data_dir, source_file):
     mastidb ingest --data-dir=/path/to/data --source-file=/path/to/source/file.csv
     """
     click.echo(f"Ingesting file {source_file} into data directory: {data_dir}")
-    from segment import Segment
     Segment.create(data_dir, source_file)
     # Logic for file ingestion
 

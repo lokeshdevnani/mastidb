@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Union, Tuple
 
-from mo_sql_parsing import parse, normal_op, format
+from mo_sql_parsing import parse, normal_op, format # type: ignore
 
 
 def listwrap(value):
@@ -14,7 +14,7 @@ def listwrap(value):
         return [value]
 
 
-def extract_aggregations(select_statement_cols: dict):
+def extract_aggregations(select_statement_cols: list[dict[str, Any]]):
     aggregations: dict[str, str] = {}
 
     def convert_dict_to_key(d):
@@ -49,7 +49,7 @@ def extract_aggregations(select_statement_cols: dict):
     return get_aggregation_id_map(), post_aggregations
 
 
-def get_dependent_columns(select_statement_cols):
+def get_dependent_columns(select_statement_cols: list[dict]) -> list[str]:
     dependent_columns: list[str] = []
 
     def process_node(current_node):

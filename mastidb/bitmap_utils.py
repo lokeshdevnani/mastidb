@@ -1,5 +1,5 @@
-import pyroaring
-from pyroaring import BitMap
+import pyroaring # type: ignore
+from pyroaring import BitMap # type: ignore
 
 
 def break_bitmap_into_chunks(bitmap: BitMap, bitmap_density_threshold: float = 0.25, chunk_size: int = 10) -> list[BitMap]:
