@@ -1,6 +1,5 @@
 from typing import Iterable
 
-import pandas as pd
 from pyroaring import BitMap  # type: ignore
 
 from common_utils import find_column_files, ensure_directory_exists
@@ -19,18 +18,9 @@ class Segment:
         self.segment_columns = segment_columns
 
     @staticmethod
-    def create(data_dir, df: pd.DataFrame) -> 'Segment':
-        logger.info("[create] Creating a segment")
-        segment_columns: dict[str, SegmentColumn] = {}
-
-        ensure_directory_exists(data_dir)
-
-        for column in df.columns:
-            logger.info(f"[create] Building column: {column}")
-            segment_columns[column] = SegmentColumn.create(DataAccessor(f"{data_dir}/{column}").open('wb'),
-                                                           df[column].tolist())
-        logger.info("[create] Segment created")
-        return Segment(segment_columns)
+    def create(data_dir, file_path: str) -> 'Segment':
+        from segment_ingester import SegmentIngester
+        return SegmentIngester.ingest(data_dir, file_path)
 
     @staticmethod
     def load(data_dir: str):
@@ -73,9 +63,3 @@ class Segment:
         start, end = indexes[0], indexes[-1]
         dict_id_list_in_range = column.get_dictionary_id_for_index_batch(start, end) # takes 2s on 1.3M rows
         return [dict_id_list_in_range[i - start] for i in indexes]
-
-
-if __name__ == '__main__':
-    artists = pd.read_json("./testing/artists.json")
-    artists_df = pd.DataFrame(artists)
-    segment = Segment.create('/tmp/artistdb', artists_df)

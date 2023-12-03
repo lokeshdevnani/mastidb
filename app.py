@@ -17,8 +17,6 @@ from segment_query_processor import SegmentQueryProcessor
 from result_set import ResultSet
 import logging
 
-logging.basicConfig(level=logging.WARN, format='[%(asctime)s] [%(name)s] [%(levelname)s] - %(message)s')
-
 class MastiDBConsole:
     def __init__(self, segment):
         self.console = Console()

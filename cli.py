@@ -1,4 +1,13 @@
+import logging
 import click
+
+logging.basicConfig(level=logging.WARN, format='[%(asctime)s] [%(name)s] [%(levelname)s] - %(message)s')
+
+def set_verbosity(ctx, param, value):
+    """ Set the logging level based on the verbosity option """
+    levels = [logging.WARNING, logging.INFO, logging.DEBUG]
+    logging.getLogger().setLevel(levels[min(len(levels)-1, value)])
+
 
 @click.group()
 def mastidb():
@@ -21,6 +30,7 @@ def mastidb():
 
 @mastidb.command()
 @click.option('--data-dir', '-d', required=True, type=click.Path(), help='Directory where data files are stored.')
+@click.option('--verbose', '-v', count=True, callback=set_verbosity, expose_value=False, is_eager=True, help="Increase verbosity (can be used multiple times. Eg. -v, -vv, -vvv).")
 def console(data_dir):
     """
     Launch the MastiDB console.
@@ -41,6 +51,7 @@ def console(data_dir):
 @mastidb.command()
 @click.option('--data-dir', '-d', required=True, type=click.Path(), help='Directory where data files are stored.')
 @click.option('--source-file', '-s', required=True, type=click.Path(exists=True), help='Path to source file to ingest (csv, tsv, json).')
+@click.option('--verbose', '-v', count=True, callback=set_verbosity, expose_value=False, is_eager=True, help="Increase verbosity (can be used multiple times. Eg. -v, -vv, -vvv).")
 def ingest(data_dir, source_file):
     """
     Ingest a file into MastiDB.
@@ -52,10 +63,8 @@ def ingest(data_dir, source_file):
     mastidb ingest --data-dir=/path/to/data --source-file=/path/to/source/file.csv
     """
     click.echo(f"Ingesting file {source_file} into data directory: {data_dir}")
-    import pandas as pd
     from segment import Segment
-    df = pd.read_csv(source_file)
-    Segment.create(data_dir, df)
+    Segment.create(data_dir, source_file)
     # Logic for file ingestion
 
 if __name__ == '__main__':

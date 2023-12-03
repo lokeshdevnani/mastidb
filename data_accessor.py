@@ -1,5 +1,7 @@
+import logging
 import mmap
 
+logger = logging.getLogger(__name__)
 
 class Fetcher:
     def __init__(self, file):
@@ -52,7 +54,7 @@ class DataAccessor:
 
     def write(self, binary_data: bytes):
         self.file.write(binary_data)
-        print("Written to filepath: " + self.filepath)
+        logger.debug("Written to filepath: " + self.filepath)
 
     def fetch_metadata(self) -> bytes:
         with open(self.filepath_metadata, 'rb') as file:
@@ -61,4 +63,4 @@ class DataAccessor:
     def write_metadata(self, binary_data: bytes) -> None:
         with open(self.filepath_metadata, 'wb') as file:
             file.write(binary_data)
-        print("Written to filepath: " + self.filepath_metadata)
+        logger.debug("Written to filepath: " + self.filepath_metadata)
