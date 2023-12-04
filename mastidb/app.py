@@ -11,11 +11,10 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.styles import Style
-from parse_helpers import ParsedQuery
-from segment import Segment
-from segment_query_processor import SegmentQueryProcessor
-from result_set import ResultSet
-import logging
+from .parse_helpers import ParsedQuery
+from .segment import Segment
+from .segment_query_processor import SegmentQueryProcessor
+from .result_set import ResultSet
 
 class MastiDBConsole:
     def __init__(self, segment):

@@ -4,11 +4,11 @@ import logging
 import time
 
 import pandas as pd
-from common_utils import ensure_directory_exists
-from data_accessor import DataAccessor
+from .common_utils import ensure_directory_exists
+from .data_accessor import DataAccessor
 
-from segment import Segment
-from segment_column import SegmentColumn
+from .segment import Segment
+from .segment_column import SegmentColumn
 
 
 logger = logging.getLogger(__name__)

@@ -36,6 +36,7 @@ class DataAccessor:
         self.fetcher = None
 
     def open(self, mode='rb') -> 'DataAccessor':
+        self.close_file() # close file before reopening it with given mode
         self.file = open(self.filepath, mode)
         if mode == 'rb':
             self.fetcher = MmapFetcher(self.file)

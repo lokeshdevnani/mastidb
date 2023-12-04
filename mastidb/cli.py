@@ -1,6 +1,6 @@
 import logging
 import click
-from segment import Segment
+from .segment import Segment
 
 logging.basicConfig(level=logging.WARN, format='[%(asctime)s] [%(name)s] [%(levelname)s] - %(message)s')
 
@@ -42,7 +42,7 @@ def console(data_dir):
     mastidb console -d /path/to/data
     mastidb console --data-dir=/path/to/data
     """
-    from app import MastiDBConsole
+    from .app import MastiDBConsole
     click.echo(f"Launching MastiDB console with data directory: {data_dir}")
     segment = Segment.load(data_dir)
     MastiDBConsole(segment).run()

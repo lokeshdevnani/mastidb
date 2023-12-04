@@ -2,12 +2,13 @@ from typing import Iterable
 
 from pyroaring import BitMap  # type: ignore
 
-from common_utils import find_column_files, ensure_directory_exists
-from data_accessor import DataAccessor
-from segment_column import SegmentColumn
+from .common_utils import find_column_files
+from .data_accessor import DataAccessor
+from .segment_column import SegmentColumn
+from .segment_column_metadata import SegmentColumnType
+
 import logging
 
-from segment_column_metadata import SegmentColumnType
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ class Segment:
 
     @staticmethod
     def create(data_dir, file_path: str) -> 'Segment':
-        from segment_ingester import SegmentIngester
+        from .segment_ingester import SegmentIngester
         return SegmentIngester.ingest(data_dir, file_path)
 
     @staticmethod

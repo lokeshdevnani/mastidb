@@ -1,8 +1,8 @@
 from typing import Tuple, Any
 
-import parse_helpers
-from aggregate_buffer import AggregateBuffer
-from aggregate_functions import AggregationFunction, AggregationFunctionSum, AggregationFunctionCount, \
+from . import parse_helpers
+from .aggregate_buffer import AggregateBuffer
+from .aggregate_functions import AggregationFunction, AggregationFunctionSum, AggregationFunctionCount, \
     AggregationFunctionAvg
 
 

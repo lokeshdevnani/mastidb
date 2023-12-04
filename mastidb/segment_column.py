@@ -5,11 +5,11 @@ from typing import Tuple
 
 from pyroaring import BitMap  # type: ignore
 
-from common_utils import binary_search_with_reader
-from data_accessor import DataAccessor
+from .common_utils import binary_search_with_reader
+from .data_accessor import DataAccessor
 
-from segment_column_metadata import SegmentColumnMetadata, SegmentColumnType
-from serialization_utils import SerializationUtils
+from .segment_column_metadata import SegmentColumnMetadata, SegmentColumnType
+from .serialization_utils import SerializationUtils
 
 logger = logging.getLogger(__name__)
 
@@ -216,3 +216,7 @@ class SegmentColumn:
             self.data_accessor.fetch(bitmap_offset_start, bitmap_offset_end)
         )
         return bitmap
+    
+    
+    def __del__(self):
+      self.data_accessor.close_file()

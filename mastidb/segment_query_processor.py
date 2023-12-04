@@ -5,14 +5,14 @@ from typing import Union, Any, Tuple, Dict
 
 from pyroaring import BitMap  # type: ignore
 
-import parse_helpers
-from aggregate_buffer import AggregateBuffer
-from aggregator import Aggregator
-from bitmap_utils import break_bitmap_into_chunks
-from parse_helpers import ParsedQuery
-from common_utils import map_reduce_op
-from result_set import ResultSet
-from segment import Segment
+from . import parse_helpers
+from .aggregate_buffer import AggregateBuffer
+from .aggregator import Aggregator
+from .bitmap_utils import break_bitmap_into_chunks
+from .parse_helpers import ParsedQuery
+from .common_utils import map_reduce_op
+from .result_set import ResultSet
+from .segment import Segment
 
 logger = logging.getLogger(__name__)
 
