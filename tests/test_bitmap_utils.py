@@ -1,6 +1,6 @@
 import unittest
 from pyroaring import BitMap
-from bitmap_utils import break_bitmap_into_chunks
+from mastidb.bitmap_utils import break_bitmap_into_chunks
 
 
 class TestBreakBitmapIntoChunks(unittest.TestCase):

@@ -40,9 +40,18 @@ class SegmentColumnMetadata:
         )
 
     def serialize(self) -> bytes:
-        # Pack the enum as an integer
-        values = list(self.__dict__.values())[:-1]  # Exclude the enum value
-        values.append(self.type.value)
+        values = (
+            self.version,
+            self.uniq_value_count,
+            self.row_count,
+            self.offset_dictionary_offsets,
+            self.offset_dictionary,
+            self.offset_list,
+            self.offset_bitmap_offsets,
+            self.offset_bitmaps_list,
+            self.end_offset,
+            self.type.value
+        )
         serialized_metadata = struct.pack('i'*10, *values)
         return serialized_metadata
 
