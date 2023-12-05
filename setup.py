@@ -3,7 +3,8 @@ from setuptools import setup
 from mypyc.build import mypycify
 
 src_dir = "mastidb"
-ext_modules = [os.path.join(src_dir, f) for f in os.listdir(src_dir) if f.endswith('.py')]
+file_list = set(os.listdir(src_dir)) - set(('cli.py', '__init__.py'))
+ext_modules = [os.path.join(src_dir, f) for f in file_list if f.endswith('.py')]
 
 
 setup(name='mastidb', 

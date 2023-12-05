@@ -1,14 +1,15 @@
-# MastiDB - A serious OLAP database engine written in python
+# MastiDB - A 'serious' OLAP database engine written in python
 
 MastiDB is an OLAP database engine, born from the adventurous journey of crafting a disk based OLAP database engine in Python (mypyc). 
 
-The code is intentionally written in a simple, accessible manner, making it an excellent resource for those curious about how databases operate. 
+It's written in a way that's easy to get, perfect for anyone who's ever wondered, "How do databases actually work?".
+See for yourself how we're mixing simplicity with serious database chops.
 
 
 ## Why?
-For me, MastiDB is more than just constructing a database; it's an exploration into the core mechanisms of database technology. It's about uncovering the secrets behind a database's ability to swiftly process and sift through terabytes of data within seconds. And eventually, build 
+For me, MastiDB is more than just building a database; it's an exploration into the core mechanisms of columnar databases. It's about uncovering the secrets behind a database's ability to swiftly process and sift through terabytes of data within seconds. 
 
-This journey has been rewarding so far where I've seen performance improvements of >90% compared to the V0 design I started with by carefully building on mini design choices.
+The journey thus far has been immensely rewarding. I have witnessed performance enhancements exceeding 90% compared to the initial V0 design, all by tweaking and fiddling with the little things at the heart of it all.
 
 ## Getting Started
 MastiDB can be used in two primary ways: as a library in your Python projects or via its command line interface (CLI) for direct interaction. Here's a quick guide to get you started:
@@ -74,6 +75,14 @@ results = SegmentQueryProcessor(segment, parsed_query=parsed_query).process_quer
 print(results)
 ```
 
+**Please Note**: MastiDB is currently not intended for production use. The API is in a state of evolution and might undergo significant changes.
+
+It's a great tool for learning and experimentation, but we recommend not using it for critical applications at this stage.
+
+
 ## Contributing
-This project is in it's early phases.
-Feel free to fork the repository, make your changes, and submit a pull request. Let's grow MastiDB together!
+MastiDB is still a baby, just getting its bearings. If you're into databases and love tinkering, give it a shot! 
+Just fork the repo, do your magic, and hit me up with a pull request.
+
+## License
+MastiDB is proudly released under the MIT License. This is pretty much as liberal as it gets – you're free to do almost anything you want with this project. Use it, change it, share it, or even sell it; just make sure to include the original copyright and license notice in your copies. 
