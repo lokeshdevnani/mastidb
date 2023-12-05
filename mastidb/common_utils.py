@@ -1,5 +1,6 @@
 import bisect
 import logging
+import math
 import os
 from functools import reduce
 from typing import Callable, Any
@@ -55,3 +56,10 @@ def binary_search_with_reader(n: int, target: str, read_value_fn: Callable[[int]
             low = mid + 1
 
     return -1
+
+def parse_int(val) -> int:
+  float_val: float = float(val)
+  if math.isnan(float_val):
+      return 0
+
+  return int(float_val)

@@ -2,7 +2,7 @@ from typing import Tuple, Any
 
 from . import parse_helpers
 from .aggregate_buffer import AggregateBuffer
-from .aggregate_functions import AggregationFunction, AggregationFunctionSum, AggregationFunctionCount, \
+from .aggregate_functions import AggregationFunction, AggregationFunctionDistinctCount, AggregationFunctionSum, AggregationFunctionCount, \
     AggregationFunctionAvg
 
 
@@ -25,19 +25,21 @@ class Aggregator:
     @staticmethod
     def create_from_expression(expression: dict[str, Any], aggregate_buffer: AggregateBuffer, value_idx: int):
         op, args = parse_helpers.unpack_op_args(expression)
-        agg_function_cls = Aggregator.find_aggregation_function(op)
+        agg_function_cls = Aggregator.find_aggregation_function(op, expression)
         return Aggregator(aggregate_buffer=aggregate_buffer,
                           aggregation_function=agg_function_cls(),
                           value_idx=value_idx,
                           expression_args=args)
 
     @staticmethod
-    def find_aggregation_function(op):
+    def find_aggregation_function(op, expression):
         if op == 'sum':
             return AggregationFunctionSum
         elif op == 'count':
-            # TODO: Handle DISTINCT column case
-            return AggregationFunctionCount
+            if expression.get('kwargs', {}).get('distinct', None) is not None:
+              return AggregationFunctionDistinctCount
+            else:
+              return AggregationFunctionCount
         elif op == "avg":
             return AggregationFunctionAvg
         else:

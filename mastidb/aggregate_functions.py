@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Tuple
 
+from .common_utils import parse_int
+
 T = TypeVar('T')
 
 
@@ -31,7 +33,7 @@ class AggregationFunctionSum(AggregationFunction[int]):
         return 0
 
     def aggregate(self, value: int, current: int):
-        return current + value
+        return current + parse_int(value)
 
 
 class AggregationFunctionAvg(AggregationFunction[tuple[int, int]]):
@@ -40,7 +42,19 @@ class AggregationFunctionAvg(AggregationFunction[tuple[int, int]]):
         return 0, 0
 
     def aggregate(self, value: int, current: tuple[int, int]):
-        return value + current[0], current[1] + 1
+        return parse_int(value) + current[0], current[1] + 1
 
     def finalize(self, current: tuple[int, int]):
         return current[0] / current[1]
+
+
+class AggregationFunctionDistinctCount(AggregationFunction[set[int]]):    
+    def get_initial_value(self) -> set[int]:
+        return set()
+
+    def aggregate(self, value: int, current: set[int]):
+        current.add(value)
+        return current
+      
+    def finalize(self, current: set[int]):
+        return len(current)

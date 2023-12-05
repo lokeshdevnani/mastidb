@@ -10,7 +10,7 @@ from .aggregate_buffer import AggregateBuffer
 from .aggregator import Aggregator
 from .bitmap_utils import break_bitmap_into_chunks
 from .parse_helpers import ParsedQuery
-from .common_utils import map_reduce_op
+from .common_utils import map_reduce_op, parse_int
 from .result_set import ResultSet
 from .segment import Segment
 
@@ -41,11 +41,7 @@ class SegmentQueryProcessor:
                                        value_matrix: Dict[str, list[Union[str, int]]]) -> Union[int, str]:
         if isinstance(expression, str):
             val = value_matrix[expression][index]
-            float_val: float = float(val)
-            if math.isnan(float_val):
-                return 0
-
-            return int(float_val)
+            return val
         elif parse_helpers.is_literal(expression):
             return parse_helpers.unpack_literal_value(expression)
         elif parse_helpers.is_operation(expression):
@@ -53,7 +49,7 @@ class SegmentQueryProcessor:
             if op == 'add':
                 return map_reduce_op(args,
                                      lambda arg: self.resolve_aggregation_expression(index, arg, value_matrix),
-                                     lambda a, b: a + b)
+                                     lambda a, b: a + parse_int(b))
             else:
                 raise NotImplementedError(f"Can't resolve op={op} for {expression}")
         else:
