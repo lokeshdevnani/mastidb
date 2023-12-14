@@ -7,7 +7,9 @@ def break_bitmap_into_chunks(bitmap: BitMap, bitmap_density_threshold: float = 0
         return []
 
     b_min, b_max, b_size = bitmap.min(), bitmap.max(), len(bitmap)
-    if b_size/(b_max - b_min) >= bitmap_density_threshold: # dense bitmap
+    if b_size == 1:
+        return [bitmap]
+    elif b_size/(b_max - b_min) >= bitmap_density_threshold: # dense bitmap
         return [bitmap]
     else:
         results = []

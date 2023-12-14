@@ -13,7 +13,7 @@ from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.styles import Style
 from .parse_helpers import ParsedQuery
 from .segment import Segment
-from .segment_query_processor import SegmentQueryProcessor
+from .aggregate_segment_query_processor import AggregateSegmentQueryProcessor
 from .result_set import ResultSet
 
 class MastiDBConsole:
@@ -98,7 +98,7 @@ class MastiDBConsole:
     def get_results(self, sql):
         t0_total, t0_cpu = time.time(), time.process_time()
         parsed_query = ParsedQuery.parse_from_sql(sql)
-        qp = SegmentQueryProcessor(self.segment, parsed_query)
+        qp = AggregateSegmentQueryProcessor(self.segment, parsed_query)
         results = qp.process_query()
         time_total, time_cpu = time.time() - t0_total, time.process_time() - t0_cpu
         return results, time_total, time_cpu

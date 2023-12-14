@@ -4,7 +4,7 @@ import pandas as pd
 
 from mastidb.parse_helpers import ParsedQuery
 from mastidb.segment import Segment
-from mastidb.segment_query_processor import SegmentQueryProcessor
+from mastidb.aggregate_segment_query_processor import AggregateSegmentQueryProcessor
 from mastidb.segment_ingester import SegmentIngester
 
 
@@ -18,7 +18,7 @@ class TestSegmentIntegration(unittest.TestCase):
 
     def get_response(self, sql, headers):
         parsed_query = ParsedQuery.parse_from_sql(sql)
-        buffer = SegmentQueryProcessor(self.segment, parsed_query=parsed_query).process_query().get_results()
+        buffer = AggregateSegmentQueryProcessor(self.segment, parsed_query=parsed_query).process_query().get_results()
         df = pd.DataFrame(buffer, columns=headers)
         return df, buffer
 
