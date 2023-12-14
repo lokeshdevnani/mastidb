@@ -1,3 +1,4 @@
+from enum import Enum
 import json
 from dataclasses import dataclass
 from typing import Any, Union, Tuple
@@ -14,14 +15,23 @@ def listwrap(value):
         return [value]
 
 
-def extract_aggregations(select_statement_cols: list[dict[str, Any]]):
+def extract_aggregations(select_statement_cols: list[dict[str, Any]], 
+                         order_by_cols: list[dict[str, Any]]):
     aggregations: dict[str, str] = {}
+    
+    def clean_aggregate_expression(expression):
+      op, args = unpack_op_args(expression)
+      if op == 'count' and "*" in args:
+        # neutralize the COUNT(*) to COUNT(1) to avoid fetching all columns
+        expression['args'] = [{'literal': 1}]
+      return expression
 
     def convert_dict_to_key(d):
         return json.dumps(d)
 
     def get_aggregation_id_map():
-        return {value: json.loads(key) for key, value in aggregations.items()}
+        return {value: clean_aggregate_expression(json.loads(key)) 
+                for key, value in aggregations.items()}
 
     def get_aggregation_mapping(node):
         if node in aggregations:
@@ -45,8 +55,9 @@ def extract_aggregations(select_statement_cols: list[dict[str, Any]]):
             return node
 
     post_aggregations = [process_node(select_col['value']) for select_col in select_statement_cols]
+    substituted_order_by_cols = [{**order_col, 'value': process_node(order_col['value'])} for order_col in order_by_cols]
 
-    return get_aggregation_id_map(), post_aggregations
+    return get_aggregation_id_map(), post_aggregations, substituted_order_by_cols
 
 
 def get_dependent_columns(select_statement_cols: list[dict]) -> list[str]:
@@ -57,7 +68,7 @@ def get_dependent_columns(select_statement_cols: list[dict]) -> list[str]:
 
         if isinstance(current_node, dict) and 'args' in current_node:
             [process_node(arg) for arg in current_node.get('args', [])]
-        elif isinstance(current_node, dict) and 'literal' in current_node:
+        elif is_literal(current_node):
             pass
         elif isinstance(current_node, list):
             [process_node(item) for item in current_node]
@@ -65,9 +76,11 @@ def get_dependent_columns(select_statement_cols: list[dict]) -> list[str]:
             dependent_columns.append(current_node)
 
     for select_col in select_statement_cols:
+        if select_col == "*":
+          raise ValueError("* NOT supported")
         process_node(select_col['value'])
 
-    return list(set(dependent_columns))
+    return list(set(dependent_columns) - set('*'))
 
 
 def is_operation(expression) -> bool:
@@ -117,15 +130,22 @@ def _get_output_cols(select_cols):
     return [select_col.get('name', unparse(select_col['value'])) for select_col in select_cols]
 
 
+class QueryType(Enum):
+    AGGREGATION:int = 1
+    NON_AGGREGATION:int = 2 
+
 @dataclass
 class ParsedQuery:
     select_statements: list
     where_conditions: dict[Any, Any]
     group_by_columns: list
+    order_by_columns: list[dict[str, str]]
     aggregate_expressions: dict
     post_aggregate_expressions: list
     dependent_columns: list[str]
     output_columns: list[str]
+    query_type: QueryType
+    limit: Union[int, None]
 
     @staticmethod
     def parse_from_sql(sql_statement):
@@ -133,15 +153,25 @@ class ParsedQuery:
         select_statements = listwrap(parsed.get('select'))
         where_conditions = parsed.get('where', {})
         group_by_columns = listwrap(parsed.get('groupby'))
+        order_by_columns = listwrap(parsed.get('orderby'))
         dependent_columns = get_dependent_columns(select_statements + group_by_columns)
-        aggregate_expressions, post_aggregate_expressions = extract_aggregations(select_statements)
+        aggregate_expressions, post_aggregate_expressions, order_by_columns = extract_aggregations(select_statements, order_by_columns)
+        limit = parsed.get('limit')
+        
+        if len(aggregate_expressions) > 0 or len(group_by_columns) > 0:
+          query_type = QueryType.AGGREGATION
+        else:
+          query_type = QueryType.NON_AGGREGATION
 
         return ParsedQuery(
             select_statements=select_statements,
             where_conditions=where_conditions,
             group_by_columns=[column['value'] for column in group_by_columns],
+            order_by_columns=[column for column in order_by_columns],
+            limit=limit,
             aggregate_expressions=aggregate_expressions,
             post_aggregate_expressions=post_aggregate_expressions,
             dependent_columns=dependent_columns,
-            output_columns=_get_output_cols(select_statements)
+            output_columns=_get_output_cols(select_statements),
+            query_type=query_type
         )
