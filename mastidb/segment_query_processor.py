@@ -1,5 +1,5 @@
 import logging
-from typing import Union, Dict
+from typing import Union, Dict, cast
 
 from pyroaring import BitMap  # type: ignore
 
@@ -17,8 +17,8 @@ class SegmentQueryProcessor:
         self.aggregators: list[Aggregator] = []
         self.finalize_values = True
             
-    def generate_value_matrix(self, bitmap: BitMap, cols_to_fetch: list[str], cols_to_early_materialize: list[str]):
-        value_matrix: Dict[str, list[Union[str, int]]] = {}
+    def generate_value_matrix(self, bitmap: BitMap, cols_to_fetch: list[str], cols_to_early_materialize: list[str]) -> Dict[str, Union[list[str], list[int]]]:
+        value_matrix: Dict[str, Union[list[str], list[int]]] = {}
         for col in cols_to_fetch:
             value_matrix[col] = self.segment.get_dictionary_ids_for_index_batch(col, bitmap)
 
@@ -28,8 +28,8 @@ class SegmentQueryProcessor:
             #  dict_ids in a batch can lie in extremes of the entire dictionary.
             #  Therefore, sequential IO scan for entire dict might get repeated for each batch
             #  This isn't the case for indexes - since list indexes are sorted physically on disk.
-            value_matrix[col] = [col_obj.get_dictionary_value_for_dictionary_id(dict_id) for dict_id in
-                                value_matrix[col]]
+            value_matrix[col] = [col_obj.get_dictionary_value_for_dictionary_id(dict_id) 
+                                 for dict_id in cast(list[int], value_matrix[col])]
         return value_matrix
     
     def _convert_to_bitmap(self, expression) -> BitMap:

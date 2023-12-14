@@ -37,7 +37,7 @@ class AggregateSegmentQueryProcessor(SegmentQueryProcessor):
         return result_set
 
     def resolve_aggregation_expression(self, index: int, expression: Union[str, dict[str, Any]],
-                                       value_matrix: Dict[str, list[Union[str, int]]]) -> Union[int, str]:
+                                       value_matrix: Dict[str, Union[list[str], list[int]]]) -> Union[int, str]:
         if isinstance(expression, str):
             val = value_matrix[expression][index]
             return val
@@ -103,7 +103,7 @@ class AggregateSegmentQueryProcessor(SegmentQueryProcessor):
 
     def perform_aggregation_for_batch(self, group_by_columns: list[str], bitmap: BitMap,
                                       aggregate_buffer: AggregateBuffer,
-                                      value_matrix: Dict[str, list[Union[str, int]]]):
+                                      value_matrix: Dict[str, Union[list[str], list[int]]]):
         for list_index, _ in enumerate(bitmap):
             aggregation_key = self.aggregation_key_for_index_from_value_matrix(group_by_columns, list_index,
                                                                                value_matrix=value_matrix)

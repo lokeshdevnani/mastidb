@@ -73,7 +73,7 @@ class NonAggregateSegmentQueryProcessor(SegmentQueryProcessor):
         return result_set
 
     def resolve_select_expression(self, expression: Union[str, Dict], index: int,
-                                  value_matrix: Dict[str, list[Union[str, int]]]) -> Union[int, str]:
+                                  value_matrix: Dict[str, Union[list[str], list[int]]]) -> Union[int, str]:
         # Same as calling parse_helpers.is_column(expression),
         # but calling inline helps the compiler with strict typing the expression inside this block
         if isinstance(expression, str):
