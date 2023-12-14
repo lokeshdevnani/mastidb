@@ -1,6 +1,7 @@
 #!/Library/Frameworks/Python.framework/Versions/3.9/bin/python3
 
 import time
+from .query_executor import QueryExecutor
 from mo_parsing import ParseException # type: ignore
 from pygments.lexers.sql import SqlLexer
 from rich.console import Console
@@ -11,9 +12,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.styles import Style
-from .parse_helpers import ParsedQuery
 from .segment import Segment
-from .aggregate_segment_query_processor import AggregateSegmentQueryProcessor
 from .result_set import ResultSet
 
 class MastiDBConsole:
@@ -97,9 +96,7 @@ class MastiDBConsole:
 
     def get_results(self, sql):
         t0_total, t0_cpu = time.time(), time.process_time()
-        parsed_query = ParsedQuery.parse_from_sql(sql)
-        qp = AggregateSegmentQueryProcessor(self.segment, parsed_query)
-        results = qp.process_query()
+        results = QueryExecutor(self.segment).execute(sql)
         time_total, time_cpu = time.time() - t0_total, time.process_time() - t0_cpu
         return results, time_total, time_cpu
 

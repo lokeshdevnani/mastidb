@@ -2,9 +2,8 @@ import logging
 import unittest
 import pandas as pd
 
-from mastidb.parse_helpers import ParsedQuery
+from mastidb.query_executor import QueryExecutor
 from mastidb.segment import Segment
-from mastidb.aggregate_segment_query_processor import AggregateSegmentQueryProcessor
 from mastidb.segment_ingester import SegmentIngester
 
 
@@ -17,8 +16,7 @@ class TestSegmentIntegration(unittest.TestCase):
         cls.segment = Segment.load('/tmp/wikidata')
 
     def get_response(self, sql, headers):
-        parsed_query = ParsedQuery.parse_from_sql(sql)
-        buffer = AggregateSegmentQueryProcessor(self.segment, parsed_query=parsed_query).process_query().get_results()
+        buffer = QueryExecutor(self.segment).execute(sql).get_results()
         df = pd.DataFrame(buffer, columns=headers)
         return df, buffer
 

@@ -1,5 +1,5 @@
 from .segment import Segment
-from .segment_query_processor import SegmentQueryProcessor
+from .query_executor import QueryExecutor
 from .cli import mastidb as cli
 
-__all__ = ['Segment', 'SegmentQueryProcessor', 'cli']
+__all__ = ['Segment', 'QueryExecutor', 'cli']

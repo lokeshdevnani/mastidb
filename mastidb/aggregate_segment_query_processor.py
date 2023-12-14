@@ -25,19 +25,15 @@ class AggregateSegmentQueryProcessor(SegmentQueryProcessor):
         logger.info("[process_query] Filtering data")
         filter_bitmap = self._convert_to_bitmap(self.parsed_query.where_conditions)
 
-        if self.parsed_query.query_type == QueryType.AGGREGATION:
-          logger.info("[process_query] Aggregating data")
-          aggregate_buffer = AggregateBuffer(value_length=len(self.parsed_query.aggregate_expressions))
-          self.aggregators = self.build_aggregators(aggregate_buffer)
-          self.set_default_values_in_aggregator_buffer(aggregate_buffer)
-          logger.info("[process_query] Performing Aggregation")
-          self.perform_aggregation(self.parsed_query.group_by_columns, filter_bitmap, aggregate_buffer)
-          logger.info("[process_query] Performing Post-aggregation")
-          result_set = self.perform_post_aggregation(aggregate_buffer)
-        elif self.parsed_query.query_type == QueryType.NON_AGGREGATION:
-          logger.info("[process_query] Selecting data")
-          raise NotImplementedError("Non-aggregation query is not supported")
-
+        logger.info("[process_query] Aggregating data")
+        aggregate_buffer = AggregateBuffer(value_length=len(self.parsed_query.aggregate_expressions))
+        self.aggregators = self.build_aggregators(aggregate_buffer)
+        self.set_default_values_in_aggregator_buffer(aggregate_buffer)
+        logger.info("[process_query] Performing Aggregation")
+        self.perform_aggregation(self.parsed_query.group_by_columns, filter_bitmap, aggregate_buffer)
+        logger.info("[process_query] Performing Post-aggregation")
+        result_set = self.perform_post_aggregation(aggregate_buffer)
+        
         return result_set
 
     def resolve_aggregation_expression(self, index: int, expression: Union[str, dict[str, Any]],
