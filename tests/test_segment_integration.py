@@ -20,20 +20,13 @@ class TestSegmentIntegration(unittest.TestCase):
         parsed_query = ParsedQuery.parse_from_sql(sql)
         buffer = SegmentQueryProcessor(self.segment, parsed_query=parsed_query).process_query().get_results()
         df = pd.DataFrame(buffer, columns=headers)
-        # df = pd.DataFrame(list(buffer.items()), columns=['Tuple', 'List'])
-        # # Flatten the Tuple and List columns
-        # df[['k{}'.format(i) for i in range(len(df['Tuple'][0]))]] = pd.DataFrame(df['Tuple'].tolist(), index=df.index)
-        # df[['v{}'.format(i) for i in range(len(df['List'][0]))]] = pd.DataFrame(df['List'].tolist(), index=df.index)
-        #
-        # # Drop the original Tuple and List columns
-        # df = df.drop(['Tuple', 'List'], axis=1)
         return df, buffer
 
     def test_group_by_sum(self):
         sql = "SELECT cityName, SUM(added), COUNT(added) FROM segment WHERE countryName = 'India' GROUP BY cityName"
         df, buffer = self.get_response(sql, ['cityName', 'sum_added', 'count_added'])
-        self.assertEqual(df[df.cityName == 'Bengaluru'].values.tolist(), [['Bengaluru', 134, 6]])
-        self.assertEqual(df[df.cityName == 'Delhi'].values.tolist(), [['Delhi', 123, 7]])
+        self.assertEqual(df[df.cityName == 'Bengaluru'].iloc[0].tolist(), ['Bengaluru', 134, 6])
+        self.assertEqual(df[df.cityName == 'Delhi'].iloc[0].tolist(), ['Delhi', 123, 7])
         self.assertEqual(df['sum_added'].sum(), 4360)
         self.assertEqual(df['count_added'].sum(), 79)
 
@@ -41,6 +34,11 @@ class TestSegmentIntegration(unittest.TestCase):
         sql = "SELECT COUNT(added) FROM segment"
         df, buffer = self.get_response(sql, ['count_added'])
         self.assertEqual(df.values.tolist(), [[24433]])
+        
+    def test_count_star_without_filter(self):
+        sql = "SELECT COUNT(*) FROM segment"
+        df, buffer = self.get_response(sql, ['count'])
+        self.assertEqual(df.values.tolist(), [[24433]])    
 
     def test_sum_of_added_by_channel(self):
         sql = "SELECT channel, SUM(added) FROM dataset GROUP BY channel"
@@ -52,6 +50,11 @@ class TestSegmentIntegration(unittest.TestCase):
         sql = "SELECT countryName, AVG(commentLength) FROM dataset GROUP BY countryName"
         df, buffer = self.get_response(sql, ['countryName', 'avg_comment_length'])
         self.assertAlmostEqual(df[df.countryName == 'Argentina']['avg_comment_length'].mean(), 25.6, places=1)
+
+    def test_distinct_count(self):
+        sql = "SELECT COUNT(DISTINCT isRobot), COUNT(isRobot) FROM dataset GROUP BY isNew"
+        df, buffer = self.get_response(sql, ['distinct_count', 'count'])
+        self.assertEqual(df.values.tolist(), [[2, 3221], [2, 21212]])
 
     @unittest.skip("boolean not supported")
     def test_count_of_minor_edits_by_namespace(self):
@@ -65,15 +68,22 @@ class TestSegmentIntegration(unittest.TestCase):
         df, buffer = self.get_response(sql, ['day', 'comments_per_day'])
         self.assertEqual(df[df.day == '2016-06-27']['comments_per_day'].sum(), 2)
 
-    @unittest.skip("ORDER BY and LIMIT not supported")
     def test_top_users_by_comment_length(self):
         sql = "SELECT user, SUM(commentLength) as total_comment_length FROM dataset GROUP BY user ORDER BY total_comment_length DESC LIMIT 5"
+        sql = "SELECT user, SUM(commentLength) as total_comment_length FROM dataset GROUP BY user ORDER BY SUM(commentLength) DESC LIMIT 5"
         df, buffer = self.get_response(sql, ['user', 'total_comment_length'])
-        self.assertEqual(df.iloc[0]['user'], 'Lsjbot')
-        self.assertEqual(df.iloc[0]['total_comment_length'], 35)
-        self.assertEqual(df.iloc[1]['user'], '181.230.118.178')
-        self.assertEqual(df.iloc[1]['total_comment_length'], 12)
-
-
+        self.assertEqual(df['user'][0], 'Kolega2357')
+        self.assertEqual(df['total_comment_length'][0], 467634)
+        self.assertEqual(df['user'][1], 'EmausBot')
+        self.assertEqual(df['total_comment_length'][1], 144260)
+        
+    def test_lexicographic_multisort_with_opposite_directions(self):
+        sql = "SELECT countryName, cityName, SUM(commentLength) as total_comment_length FROM dataset WHERE countryName='India' GROUP BY countryName, cityName ORDER BY countryName asc, cityName desc LIMIT 3"
+        df, buffer = self.get_response(sql, ['countryName', 'cityName', 'total_comment_length'])
+        
+        self.assertEqual(df['countryName'].tolist(), ['India', 'India', 'India'])
+        self.assertEqual(df['cityName'].tolist(), ['Thrissur', 'Thiruvananthapuram', 'Pune'])
+        
+        
 if __name__ == '__main__':
     unittest.main()

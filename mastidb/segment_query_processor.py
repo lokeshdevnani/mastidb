@@ -1,5 +1,5 @@
+import heapq
 import logging
-import math
 import time
 from typing import Union, Any, Tuple, Dict
 
@@ -9,7 +9,7 @@ from . import parse_helpers
 from .aggregate_buffer import AggregateBuffer
 from .aggregator import Aggregator
 from .bitmap_utils import break_bitmap_into_chunks
-from .parse_helpers import ParsedQuery
+from .parse_helpers import ParsedQuery, QueryType
 from .common_utils import map_reduce_op, parse_int
 from .result_set import ResultSet
 from .segment import Segment
@@ -27,14 +27,20 @@ class SegmentQueryProcessor:
     def process_query(self) -> ResultSet:
         logger.info("[process_query] Filtering data")
         filter_bitmap = self._convert_to_bitmap(self.parsed_query.where_conditions)
-        logger.info("[process_query] Aggregating data")
-        aggregate_buffer = AggregateBuffer(value_length=len(self.parsed_query.aggregate_expressions))
-        self.aggregators = self.build_aggregators(aggregate_buffer)
-        self.set_default_values_in_aggregator_buffer(aggregate_buffer)
-        logger.info("[process_query] Performing Aggregation")
-        self.perform_aggregation(self.parsed_query.group_by_columns, filter_bitmap, aggregate_buffer)
-        logger.info("[process_query] Performing Post-aggregation")
-        result_set = self.perform_post_aggregation(aggregate_buffer)
+        
+        if self.parsed_query.query_type == QueryType.AGGREGATION:
+          logger.info("[process_query] Aggregating data")
+          aggregate_buffer = AggregateBuffer(value_length=len(self.parsed_query.aggregate_expressions))
+          self.aggregators = self.build_aggregators(aggregate_buffer)
+          self.set_default_values_in_aggregator_buffer(aggregate_buffer)
+          logger.info("[process_query] Performing Aggregation")
+          self.perform_aggregation(self.parsed_query.group_by_columns, filter_bitmap, aggregate_buffer)
+          logger.info("[process_query] Performing Post-aggregation")
+          result_set = self.perform_post_aggregation(aggregate_buffer)
+        elif self.parsed_query.query_type == QueryType.NON_AGGREGATION:
+          logger.info("[process_query] Selecting data")
+          raise NotImplementedError("Non-aggregation query is not supported")
+          
         return result_set
 
     def resolve_aggregation_expression(self, index: int, expression: Union[str, dict[str, Any]],
@@ -97,13 +103,13 @@ class SegmentQueryProcessor:
         logger.info('Breaking bitmap into chunk_count=%d', len(bitmap_chunks))
         agg_start_time = time.time()
         for bitmap_chunk in bitmap_chunks:
-            value_matrix = self.generate_value_matrix(bitmap_chunk, cols_to_early_materialize)
+            value_matrix = self.generate_value_matrix(bitmap_chunk, self.parsed_query.dependent_columns, cols_to_early_materialize)
             self.perform_aggregation_for_batch(group_by_columns, bitmap_chunk, aggregate_buffer, value_matrix)
         logger.info('aggregation time: %s', time.time() - agg_start_time)
 
-    def generate_value_matrix(self, bitmap: BitMap, cols_to_early_materialize: list[str]):
+    def generate_value_matrix(self, bitmap: BitMap, cols_to_fetch: list[str], cols_to_early_materialize: list[str]):
         value_matrix: Dict[str, list[Union[str, int]]] = {}
-        for col in self.parsed_query.dependent_columns:
+        for col in cols_to_fetch:
             value_matrix[col] = self.segment.get_dictionary_ids_for_index_batch(col, bitmap)
 
         for col in cols_to_early_materialize:
@@ -153,6 +159,10 @@ class SegmentQueryProcessor:
 
         result_set = ResultSet(columns=self.parsed_query.output_columns)
 
+        is_top_k = len(self.parsed_query.order_by_columns) > 0
+        min_heap: list[Tuple[int, ...]] = []
+        limit = self.parsed_query.limit or 1000
+        
         for keys, values in aggregate_buffer.get_results().items():
             if self.finalize_values:
                 values = [aggregator.finalize_values(value) for value, aggregator in zip(values, self.aggregators)]
@@ -164,8 +174,32 @@ class SegmentQueryProcessor:
                 calculated_value = self.resolve_post_aggregation_expression(post_aggregation, values,
                                                                             key_name_to_idx_map, decoded_keys)
                 result_row.append(calculated_value)
+            
+            if is_top_k:
+              sort_tuple: Tuple[int, ...] = self.build_sort_tuple_from_sort_order(key_name_to_idx_map, keys, values) + (result_set.current_index(),)
+              self._add_to_heap(min_heap, limit, sort_tuple)
+                
             result_set.append(result_row)
+        
+        if is_top_k:    
+          min_heap = heapq.nlargest(limit, min_heap)
+          final_index_order = [tpl[-1] for tpl in min_heap]
+          result_set.rearrange(final_index_order)
+              
         return result_set
+
+    def build_sort_tuple_from_sort_order(self, key_name_to_idx_map, keys, values) -> Tuple[int, ...]:
+        return tuple(
+                  self.resolve_post_aggregation_expression(col['value'], values, key_name_to_idx_map, keys) * 
+                  (1 if col.get('sort') == 'desc' else -1)
+                  for col in self.parsed_query.order_by_columns
+              )
+
+    def _add_to_heap(self, min_heap: list[Tuple[int, ...]], limit: int, sort_tuple: Tuple[int, ...]):
+        if len(min_heap) < limit:
+            heapq.heappush(min_heap, sort_tuple)
+        elif sort_tuple > min_heap[0]:
+            heapq.heappushpop(min_heap, sort_tuple)
 
     @staticmethod
     def aggregation_key_for_index_from_value_matrix(group_by_columns: list[str], index: int,
