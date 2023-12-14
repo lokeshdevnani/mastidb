@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 class Segment:
     segment_columns: dict[str, SegmentColumn]
 
-    def __init__(self, segment_columns=None):
+    def __init__(self, segment_columns: dict[str, SegmentColumn]):
         self.segment_columns = segment_columns
 
     @staticmethod
-    def create(data_dir, file_path: str) -> 'Segment':
+    def create(data_dir: str, file_path: str) -> 'Segment':
         from .segment_ingester import SegmentIngester
         return SegmentIngester.ingest(data_dir, file_path)
 

@@ -55,7 +55,7 @@ class AggregateSegmentQueryProcessor(SegmentQueryProcessor):
             raise NotImplementedError(f"Unknown type: {expression}")
 
     def resolve_post_aggregation_expression(self, expression: Union[str, Dict], variable_values: list[Any],
-                                            key_name_to_idx_map: dict[str, int], decoded_keys: Tuple[Any, ...]):
+                                            key_name_to_idx_map: dict[str, int], decoded_keys: Tuple[Any, ...]) -> Any:
         # Same as calling parse_helpers.is_column(expression),
         # but calling inline helps the compiler with strict typing the expression inside this block
         if isinstance(expression, str):

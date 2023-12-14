@@ -23,7 +23,7 @@ class Aggregator:
         return self.aggregation_function.finalize(value)
 
     @staticmethod
-    def create_from_expression(expression: dict[str, Any], aggregate_buffer: AggregateBuffer, value_idx: int):
+    def create_from_expression(expression: dict[str, Any], aggregate_buffer: AggregateBuffer, value_idx: int) -> 'Aggregator':
         op, args = parse_helpers.unpack_op_args(expression)
         agg_function_cls = Aggregator.find_aggregation_function(op, expression)
         return Aggregator(aggregate_buffer=aggregate_buffer,

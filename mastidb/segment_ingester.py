@@ -38,7 +38,7 @@ def _is_newline_separated_json(file_path):
 
 class SegmentIngester:
   @staticmethod
-  def ingest(data_dir: str, file_path: str):
+  def ingest(data_dir: str, file_path: str) -> Segment:
     start_time = time.time()
     df = SegmentIngester.convert_file_to_pandas(file_path)
     segment = SegmentIngester.ingest_from_df(data_dir, df)
@@ -81,7 +81,7 @@ class SegmentIngester:
     return df
   
   @staticmethod
-  def ingest_from_df(data_dir: str, df: pd.DataFrame):
+  def ingest_from_df(data_dir: str, df: pd.DataFrame) -> Segment:
     logger.info("[create] Creating a segment")
     segment_columns: dict[str, SegmentColumn] = {}
 

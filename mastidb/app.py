@@ -16,7 +16,7 @@ from .segment import Segment
 from .result_set import ResultSet
 
 class MastiDBConsole:
-    def __init__(self, segment):
+    def __init__(self, segment: Segment):
         self.console = Console()
         self.segment = segment
         self.sql_completer = WordCompleter([
@@ -60,7 +60,7 @@ class MastiDBConsole:
                 print(e.error_message)
         print('GoodBye!')
 
-    def print_results(self, sql):
+    def print_results(self, sql: str):
         with Progress(
                 SpinnerColumn("monkey"),
                 *Progress.get_default_columns(),
@@ -94,13 +94,8 @@ class MastiDBConsole:
 
         return table
 
-    def get_results(self, sql):
+    def get_results(self, sql: str):
         t0_total, t0_cpu = time.time(), time.process_time()
         results = QueryExecutor(self.segment).execute(sql)
         time_total, time_cpu = time.time() - t0_total, time.process_time() - t0_cpu
         return results, time_total, time_cpu
-
-
-if __name__ == '__main__':
-    segment = Segment.load('/tmp/menuitem')
-    MastiDBConsole(segment).run()

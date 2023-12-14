@@ -1,7 +1,7 @@
 import logging
 import struct
 from functools import lru_cache
-from typing import Tuple
+from typing import Any, Tuple, Union
 
 from pyroaring import BitMap  # type: ignore
 
@@ -45,7 +45,7 @@ class SegmentColumn:
         return SegmentColumn(metadata, data_accessor)
 
     @staticmethod
-    def create(data_accessor: DataAccessor, raw_column_data: list) -> 'SegmentColumn':
+    def create(data_accessor: DataAccessor, raw_column_data: list[Any]) -> 'SegmentColumn':
         logger.debug("Encoding column")
         encoded_data = SegmentColumn.encode_column(raw_column_data)
 
@@ -151,7 +151,7 @@ class SegmentColumn:
         deserialized_data = self.deserialize()
         return [deserialized_data[0][index] for index in deserialized_data[1]]
 
-    def get_dictionary_id_for_item(self, item) -> int:
+    def get_dictionary_id_for_item(self, item: str) -> int:
         # lookup item in dictionary and find out the dictionary_code
         dict_id = binary_search_with_reader(self.metadata.uniq_value_count, item,
                                             lambda idx: self.get_dictionary_value_for_dictionary_id(idx))
@@ -168,7 +168,7 @@ class SegmentColumn:
             return BitMap()
         return self.get_bitmap(dictionary_id)
 
-    def get_dictionary_value_for_dictionary_id(self, dictionary_id) -> str:
+    def get_dictionary_value_for_dictionary_id(self, dictionary_id: int) -> str:
         start = self.metadata.offset_dictionary_offsets + dictionary_id * 4
         val_offset_start, val_offset_end = SerializationUtils.deserialize_intlist(
             self.data_accessor.fetch(start, start + 8),
@@ -179,14 +179,14 @@ class SegmentColumn:
                                      self.metadata.offset_dictionary + val_offset_end)
         )
 
-    def get_dictionary_id_for_index(self, index) -> int:
+    def get_dictionary_id_for_index(self, index: int) -> int:
         encoded_value = SerializationUtils.deserialize_int(
             self.data_accessor.fetch(self.metadata.offset_list + index * 4,
                                      self.metadata.offset_list + index * 4 + 4)
         )
         return encoded_value
 
-    def get_dictionary_id_for_index_batch(self, start, end) -> Tuple[int, ...]:
+    def get_dictionary_id_for_index_batch(self, start: int, end: int) -> Tuple[int, ...]:
         encoded_value = SerializationUtils.deserialize_intlist(
             self.data_accessor.fetch(self.metadata.offset_list + start * 4,
                                      self.metadata.offset_list + end * 4 + 4),

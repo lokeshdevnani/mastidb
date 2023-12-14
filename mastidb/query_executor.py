@@ -15,16 +15,16 @@ class QueryExecutor:
         self.segment = segment
 
     @staticmethod
-    def from_data_dir(data_dir: str):
+    def from_data_dir(data_dir: str) -> 'QueryExecutor':
         segment = Segment.load(data_dir)
         return QueryExecutor(segment)
 
     @staticmethod
-    def from_ingest_source(data_dir: str, source_file: str):
-        segment = SegmentIngester.ingest(data_dir, 'tests/datasets/wikipedia.json')
+    def from_ingest_source(data_dir: str, source_file: str) -> 'QueryExecutor':
+        segment = SegmentIngester.ingest(data_dir, source_file)
         return QueryExecutor(segment)
 
-    def execute(self, sql) -> ResultSet:
+    def execute(self, sql: str) -> ResultSet:
         parsed_query = ParsedQuery.parse_from_sql(sql)
         query_type = parsed_query.query_type
         logger.info('Query identifier as %s query', query_type)

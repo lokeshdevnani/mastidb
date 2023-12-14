@@ -22,7 +22,7 @@ def find_column_files(data_dir: str):
     return columns
 
 
-def ensure_directory_exists(directory_path):
+def ensure_directory_exists(directory_path) -> None:
     # Check if the directory exists
     if not os.path.exists(directory_path):
         # If not, create it
@@ -32,7 +32,7 @@ def ensure_directory_exists(directory_path):
         logger.info(f"Directory '{directory_path}' already exists. Proceeding")
 
 
-def binary_search(arr: list[str], x: str):
+def binary_search(arr: list[str], x: str) -> int:
     index = bisect.bisect_left(arr, x)
     if index != len(arr) and arr[index] == x:
         return index
@@ -40,7 +40,7 @@ def binary_search(arr: list[str], x: str):
         return -1
 
 
-def binary_search_with_reader(n: int, target: str, read_value_fn: Callable[[int], str]):
+def binary_search_with_reader(n: int, target: str, read_value_fn: Callable[[int], str]) -> int:
     low = 0
     high = n - 1
 

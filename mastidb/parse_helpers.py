@@ -148,7 +148,7 @@ class ParsedQuery:
     limit: Union[int, None]
 
     @staticmethod
-    def parse_from_sql(sql_statement):
+    def parse_from_sql(sql_statement: str):
         parsed = parse(sql_statement, calls=normal_op)
         select_statements = listwrap(parsed.get('select'))
         where_conditions = parsed.get('where', {})

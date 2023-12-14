@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import TypeVar, Generic, Tuple
+from typing import Any, TypeVar, Generic, Tuple
 
 from .common_utils import parse_int
 
@@ -12,7 +12,7 @@ class AggregationFunction(Generic[T], ABC):
       pass
 
     @abstractmethod
-    def aggregate(self, value: int, current: T) -> T:
+    def aggregate(self, value: Any, current: T) -> T:
         pass
 
     def finalize(self, current: T):
@@ -23,7 +23,7 @@ class AggregationFunctionCount(AggregationFunction[int]):
     def get_initial_value(self) -> int:
         return 0
 
-    def aggregate(self, value: int, current: int):
+    def aggregate(self, value: Any, current: int):
         return current + 1
 
 
@@ -32,7 +32,7 @@ class AggregationFunctionSum(AggregationFunction[int]):
     def get_initial_value(self) -> int:
         return 0
 
-    def aggregate(self, value: int, current: int):
+    def aggregate(self, value: Any, current: int):
         return current + parse_int(value)
 
 
@@ -41,7 +41,7 @@ class AggregationFunctionAvg(AggregationFunction[tuple[int, int]]):
     def get_initial_value(self) -> Tuple[int, int]:
         return 0, 0
 
-    def aggregate(self, value: int, current: tuple[int, int]):
+    def aggregate(self, value: Any, current: tuple[int, int]):
         return parse_int(value) + current[0], current[1] + 1
 
     def finalize(self, current: tuple[int, int]):
@@ -52,7 +52,7 @@ class AggregationFunctionDistinctCount(AggregationFunction[set[int]]):
     def get_initial_value(self) -> set[int]:
         return set()
 
-    def aggregate(self, value: int, current: set[int]):
+    def aggregate(self, value: Any, current: set[int]):
         current.add(value)
         return current
       

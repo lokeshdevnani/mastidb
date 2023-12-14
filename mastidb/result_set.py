@@ -10,10 +10,10 @@ class ResultSet:
           
         self.columns: list[str] = columns
 
-    def append(self, row: list[Any]):
+    def append(self, row: list[Any]) -> None:
         self.results.append(row)
       
-    def insert_at(self, i: int, row: list[Any]):
+    def insert_at(self, i: int, row: list[Any]) -> None:
         self.results[i] = row
 
     def get_results(self) -> list[list[Any]]:
@@ -22,5 +22,5 @@ class ResultSet:
     def current_index(self) -> int:
       return len(self.results)
     
-    def rearrange(self, index_order: list[int]):
+    def rearrange(self, index_order: list[int]) -> None:
       self.results = [self.results[index] for index in index_order]
