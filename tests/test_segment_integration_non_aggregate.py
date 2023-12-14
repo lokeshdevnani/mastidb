@@ -36,16 +36,19 @@ class TestSegmentIntegrationNonAggregate(unittest.TestCase):
         columns = ['added', 'channel', 'cityName', 'comment', 'commentLength', 'countryIsoCode', 'countryName', 'deleted', 'delta', 'deltaBucket', 'diffUrl', 'flags', 'isAnonymous', 'isMinor', 'isNew', 'isRobot', 'isUnpatrolled', 'metroCode', 'namespace', 'page', 'regionIsoCode', 'regionName', 'timestamp', 'user']
         sql = f"SELECT {', '.join(columns)} FROM segment WHERE regionName='Illinois' ORDER BY user LIMIT 1"
         df, buffer = self.get_response(sql, columns)
-        expected_list = [['92', '#en.wikipedia', 'None', '/* Extensions */', '16', 'US', 'United States', '0', '92', '0', 'https://en.wikipedia.org/w/index.php?diff=727271150&oldid=727270612', '', 'True', 'False', 'False', 'False', 'False', 'nan', 'Main', 'KeyCreator', 'IL', 'Illinois', '2016-06-27 21:23:20.497000+00:00', '12.145.185.163']]
-        self.assertEqual(buffer, expected_list)
+        self.assertEqual(len(buffer), 1)
+        
+        expected_list = ['92', '#en.wikipedia', 'None', '/* Extensions */', '16', 'US', 'United States', '0', '92', '0', 'https://en.wikipedia.org/w/index.php?diff=727271150&oldid=727270612', '', 'True', 'False', 'False', 'False', 'False', 'nan', 'Main', 'KeyCreator', 'IL', 'Illinois', '2016-06-27 21:23:20.497000+00:00', '12.145.185.163']
+        self.assertEqual(buffer[0], expected_list)
 
-    @unittest.skip("SELECT * not supported")
     def test_select_star_with_sort(self):
         columns = ['added', 'channel', 'cityName', 'comment', 'commentLength', 'countryIsoCode', 'countryName', 'deleted', 'delta', 'deltaBucket', 'diffUrl', 'flags', 'isAnonymous', 'isMinor', 'isNew', 'isRobot', 'isUnpatrolled', 'metroCode', 'namespace', 'page', 'regionIsoCode', 'regionName', 'timestamp', 'user']
         sql = f"SELECT * FROM segment WHERE regionName='Illinois' ORDER BY user LIMIT 1"
         df, buffer = self.get_response(sql, columns)
-        expected_list = [['92', '#en.wikipedia', 'None', '/* Extensions */', '16', 'US', 'United States', '0', '92', '0', 'https://en.wikipedia.org/w/index.php?diff=727271150&oldid=727270612', '', 'True', 'False', 'False', 'False', 'False', 'nan', 'Main', 'KeyCreator', 'IL', 'Illinois', '2016-06-27 21:23:20.497000+00:00', '12.145.185.163']]
-        self.assertEqual(buffer, expected_list)
+        self.assertEqual(len(buffer), 1)
+        
+        expected_list = ['92', '#en.wikipedia', 'None', '/* Extensions */', '16', 'US', 'United States', '0', '92', '0', 'https://en.wikipedia.org/w/index.php?diff=727271150&oldid=727270612', '', 'True', 'False', 'False', 'False', 'False', 'nan', 'Main', 'KeyCreator', 'IL', 'Illinois', '2016-06-27 21:23:20.497000+00:00', '12.145.185.163']
+        self.assertCountEqual(buffer[0], expected_list)
         
     @unittest.skip("metroCode is a float field because of NaN values therefore the bitmap search fails")
     def test_float64_column_filter(self):

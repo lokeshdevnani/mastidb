@@ -82,6 +82,16 @@ def get_dependent_columns(select_statement_cols: list[dict]) -> list[str]:
 
     return list(set(dependent_columns) - set('*'))
 
+def convert_star_to_column_list(select_statement_cols: list[dict], column_list: list[str]) -> list[dict]:
+    transformed_list = []
+    for select_col in select_statement_cols:    
+        if select_col == "*":
+            print('*', column_list)
+            transformed_list += [{'value': col} for col in column_list]
+        else:
+            transformed_list.append(select_col)
+    return transformed_list
+
 
 def is_operation(expression) -> bool:
     return 'op' in expression
@@ -148,9 +158,10 @@ class ParsedQuery:
     limit: Union[int, None]
 
     @staticmethod
-    def parse_from_sql(sql_statement: str):
+    def parse_from_sql(sql_statement: str, column_list: list[str]) -> 'ParsedQuery':
         parsed = parse(sql_statement, calls=normal_op)
         select_statements = listwrap(parsed.get('select'))
+        select_statements = convert_star_to_column_list(select_statements, column_list)
         where_conditions = parsed.get('where', {})
         group_by_columns = listwrap(parsed.get('groupby'))
         order_by_columns = listwrap(parsed.get('orderby'))

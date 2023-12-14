@@ -25,7 +25,7 @@ class QueryExecutor:
         return QueryExecutor(segment)
 
     def execute(self, sql: str) -> ResultSet:
-        parsed_query = ParsedQuery.parse_from_sql(sql)
+        parsed_query = ParsedQuery.parse_from_sql(sql, self.segment.column_names())
         query_type = parsed_query.query_type
         logger.info('Query identifier as %s query', query_type)
 

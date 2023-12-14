@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Iterable, List
 
 from pyroaring import BitMap  # type: ignore
 
@@ -33,6 +33,9 @@ class Segment:
             logger.info(f"[load] Loading column: {column}")
             segment_columns[column] = SegmentColumn.load(DataAccessor(f"{data_dir}/{column}").open())
         return Segment(segment_columns)
+    
+    def column_names(self) -> List[str]:
+        return list(self.segment_columns.keys())
 
     def get_column(self, column_name) -> SegmentColumn:
         return self.segment_columns[column_name]
