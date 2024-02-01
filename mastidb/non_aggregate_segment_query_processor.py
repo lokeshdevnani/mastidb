@@ -27,71 +27,40 @@ class NonAggregateSegmentQueryProcessor(SegmentQueryProcessor):
 
         return result_set
 
-    def process_non_aggregation_query(self, bitmap: BitMap) -> ResultSet:
-        # ORDER AND LIMIT clause processing logic for non-aggregation queries
-        # if len(order_by_columns) > 0 and len(limit) > 0:
-        #     # iterate till the end
-        #     # Use heap to maintain LIMIT elements
-        #     query_type = QueryType.NON_AGGREGATION_TOP_N
-        #   elif len(order_by_columns) > 0:
-        #     # iterate till the end
-        #     # Do full sorting on the results -> quick sort
-        #     pass
-        #   elif len(order_by_columns) == 0 and limit is not None:
-        #     # Get first N rows and stop -> no sort required
-        #     pass
-        #   else:
-        #     # iterate till the end.
-        #     # return all rows as is.
-        #     pass
+    def _process_bitmap_chunks(self, bitmap_chunks, order_by_cols, limit=None, row_number_to_result_row_index=None):
+        """Process bitmap chunks and populate the result set."""
+        result_set = ResultSet(columns=self.parsed_query.output_columns, row_count=len(row_number_to_result_row_index or []))
+        for bitmap_chunk in bitmap_chunks:
+            value_matrix = self.generate_value_matrix(
+                bitmap_chunk, self.parsed_query.dependent_columns, self.parsed_query.dependent_columns)
 
+            for list_index, index in enumerate(bitmap_chunk):
+                result_row = [self.resolve_select_expression(select_statement['value'], list_index, value_matrix)
+                              for select_statement in self.parsed_query.select_statements]
+
+                if order_by_cols:
+                    result_set.insert_at(row_number_to_result_row_index[index], result_row)
+                else:
+                    result_set.append(result_row)
+                    if limit and result_set.current_index() >= limit:
+                        return result_set
+
+        return result_set
+
+    def process_non_aggregation_query(self, bitmap: BitMap) -> ResultSet:
         order_by_cols = self.parsed_query.order_by_columns
         limit = self.parsed_query.limit or 10
 
         bitmap_chunks = break_bitmap_into_chunks(bitmap, bitmap_density_threshold=2, chunk_size=100000)
         logger.info('Breaking bitmap into chunk_count=%d', len(bitmap_chunks))
 
-        if len(order_by_cols) > 0:
+        if order_by_cols:
             limited_bitmap, row_number_to_result_row_index = self.top_k_sort(bitmap_chunks, order_by_cols, limit)
-
-            bitmap_chunks = break_bitmap_into_chunks(limited_bitmap, bitmap_density_threshold=2, chunk_size=100000)
-            logger.info('Breaking bitmap into chunk_count=%d', len(bitmap_chunks))
-
-            result_set = ResultSet(columns=self.parsed_query.output_columns, row_count=len(limited_bitmap))
-            for bitmap_chunk in bitmap_chunks:
-                value_matrix = self.generate_value_matrix(
-                    bitmap_chunk, self.parsed_query.dependent_columns, self.parsed_query.dependent_columns)
-
-                for list_index, index in enumerate(bitmap_chunk):
-                    result_row = []
-                    for _, select_statement in enumerate(self.parsed_query.select_statements):
-                        calculated_value = self.resolve_select_expression(
-                            select_statement['value'], list_index, value_matrix)
-                        result_row.append(calculated_value)
-                    result_set.insert_at(row_number_to_result_row_index[index], result_row)
-
-            return result_set
+            new_bitmap_chunks = break_bitmap_into_chunks(limited_bitmap, bitmap_density_threshold=2, chunk_size=100000)
+            logger.info('Breaking limited bitmap into chunk_count=%d', len(new_bitmap_chunks))
+            return self._process_bitmap_chunks(new_bitmap_chunks, order_by_cols, row_number_to_result_row_index=row_number_to_result_row_index)
         else:
-            # TODO: Handle the repetition of the logic from above.
-            row_count = max(limit, len(bitmap))
-            result_set = ResultSet(columns=self.parsed_query.output_columns)
-            for bitmap_chunk in bitmap_chunks:
-                value_matrix = self.generate_value_matrix(
-                    bitmap_chunk, self.parsed_query.dependent_columns, self.parsed_query.dependent_columns)
-
-                for list_index, index in enumerate(bitmap_chunk):
-                    result_row = []
-                    for _, select_statement in enumerate(self.parsed_query.select_statements):
-                        calculated_value = self.resolve_select_expression(
-                            select_statement['value'], list_index, value_matrix)
-                        result_row.append(calculated_value)
-                    result_set.append(result_row)
-                    
-                    
-                    if result_set.current_index() == limit:
-                        return result_set
-            
-            return result_set                    
+            return self._process_bitmap_chunks(bitmap_chunks, order_by_cols, limit=limit)                   
 
     def resolve_select_expression(self, expression: Union[str, Dict], index: int,
                                   value_matrix: Dict[str, Union[list[str], list[int]]]) -> Union[int, str]:
