@@ -70,7 +70,28 @@ class NonAggregateSegmentQueryProcessor(SegmentQueryProcessor):
                         result_row.append(calculated_value)
                     result_set.insert_at(row_number_to_result_row_index[index], result_row)
 
-        return result_set
+            return result_set
+        else:
+            # TODO: Handle the repetition of the logic from above.
+            row_count = max(limit, len(bitmap))
+            result_set = ResultSet(columns=self.parsed_query.output_columns)
+            for bitmap_chunk in bitmap_chunks:
+                value_matrix = self.generate_value_matrix(
+                    bitmap_chunk, self.parsed_query.dependent_columns, self.parsed_query.dependent_columns)
+
+                for list_index, index in enumerate(bitmap_chunk):
+                    result_row = []
+                    for _, select_statement in enumerate(self.parsed_query.select_statements):
+                        calculated_value = self.resolve_select_expression(
+                            select_statement['value'], list_index, value_matrix)
+                        result_row.append(calculated_value)
+                    result_set.append(result_row)
+                    
+                    
+                    if result_set.current_index() == limit:
+                        return result_set
+            
+            return result_set                    
 
     def resolve_select_expression(self, expression: Union[str, Dict], index: int,
                                   value_matrix: Dict[str, Union[list[str], list[int]]]) -> Union[int, str]:
