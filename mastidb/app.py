@@ -12,6 +12,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.styles import Style
+import traceback
 from .segment import Segment
 from .result_set import ResultSet
 
@@ -56,8 +57,8 @@ class MastiDBConsole:
                 print(":zzz:  Someone pulled the plug on the database. ")
                 exit(0)
             except Exception as e:
-                print(":x:  Uh-oh, something went wrong. Remember, even databases have their clumsy days!")
-                print(e.error_message)
+                print(f":x:  Uh-oh, something went wrong. Remember, even databases have their clumsy days! {e}")
+                print(traceback.format_exc())
         print('GoodBye!')
 
     def print_results(self, sql: str):

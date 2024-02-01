@@ -19,7 +19,6 @@ class AggregateSegmentQueryProcessor(SegmentQueryProcessor):
     def __init__(self, segment: Segment, parsed_query: ParsedQuery):
         super().__init__(segment, parsed_query)
         self.aggregators: list[Aggregator] = []
-        self.finalize_values = True
 
     def process_query(self) -> ResultSet:
         logger.info("[process_query] Filtering data")
@@ -39,8 +38,7 @@ class AggregateSegmentQueryProcessor(SegmentQueryProcessor):
     def resolve_aggregation_expression(self, index: int, expression: Union[str, dict[str, Any]],
                                        value_matrix: Dict[str, Union[list[str], list[int]]]) -> Union[int, str]:
         if isinstance(expression, str):
-            val = value_matrix[expression][index]
-            return val
+            return value_matrix[expression][index]
         elif parse_helpers.is_literal(expression):
             return parse_helpers.unpack_literal_value(expression)
         elif parse_helpers.is_operation(expression):

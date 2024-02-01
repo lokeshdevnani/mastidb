@@ -38,7 +38,9 @@ class Segment:
         return list(self.segment_columns.keys())
 
     def get_column(self, column_name) -> SegmentColumn:
-        return self.segment_columns[column_name]
+        if column_name in self.segment_columns:
+            return self.segment_columns[column_name]
+        raise ValueError(f"Unknown column '{column_name}' in query")
 
     def get_bitmap_for_column_value(self, column, item) -> BitMap:
         # TODO: Cache this
