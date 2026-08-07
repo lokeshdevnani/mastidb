@@ -82,13 +82,14 @@ def get_dependent_columns(select_statement_cols: list[dict]) -> list[str]:
 
     return list(set(dependent_columns) - set('*'))
 
-def convert_star_to_column_list(select_statement_cols: list[dict], column_list: list[str]) -> list[dict]:
-    transformed_list = []
+def convert_star_to_column_list(select_statement_cols: list[Union[str, dict]], column_list: list[str]) -> list[dict]:
+    transformed_list: list[dict] = []
     for select_col in select_statement_cols:    
         if select_col == "*":
             print('*', column_list)
             transformed_list += [{'value': col} for col in column_list]
         else:
+            assert isinstance(select_col, dict)
             transformed_list.append(select_col)
     return transformed_list
 
@@ -149,7 +150,7 @@ class ParsedQuery:
     select_statements: list
     where_conditions: dict[Any, Any]
     group_by_columns: list
-    order_by_columns: list[dict[str, str]]
+    order_by_columns: list[dict[str, Any]]
     aggregate_expressions: dict
     post_aggregate_expressions: list
     dependent_columns: list[str]

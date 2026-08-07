@@ -81,6 +81,22 @@ class TestSegmentIntegration(unittest.TestCase):
         
         self.assertEqual(df['countryName'].tolist(), ['India', 'India', 'India'])
         self.assertEqual(df['cityName'].tolist(), ['Thrissur', 'Thiruvananthapuram', 'Pune'])
+
+    def test_empty_group_by_when_filter_matches_nothing(self):
+        sql = ("SELECT cityName, COUNT(*) FROM segment "
+               "WHERE countryName = '__NO_SUCH_COUNTRY__' GROUP BY cityName")
+        df, buffer = self.get_response(sql, ['cityName', 'count'])
+        self.assertEqual(buffer, [])
+
+    def test_or_filter_count(self):
+        sql = "SELECT COUNT(*) FROM segment WHERE countryName = 'India' OR countryName = 'Argentina'"
+        df, buffer = self.get_response(sql, ['count'])
+        self.assertEqual(buffer, [[139]])
+
+    def test_and_filter_count(self):
+        sql = "SELECT COUNT(*) FROM segment WHERE countryName = 'India' AND cityName = 'Mumbai'"
+        df, buffer = self.get_response(sql, ['count'])
+        self.assertEqual(buffer, [[9]])
         
         
 if __name__ == '__main__':

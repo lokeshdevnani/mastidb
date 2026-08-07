@@ -56,7 +56,33 @@ class TestSegmentIntegrationNonAggregate(unittest.TestCase):
         df, buffer = self.get_response(sql, ['metroCode'])
         expected_list = [['602']]
         self.assertEqual(buffer, expected_list)
-         
+
+    def test_select_with_limit_without_order_by(self):
+        # Row order is not guaranteed without ORDER BY; only cardinality + filter correctness.
+        sql = "SELECT cityName, countryName FROM segment WHERE countryName = 'India' LIMIT 5"
+        df, buffer = self.get_response(sql, ['cityName', 'countryName'])
+        self.assertEqual(len(buffer), 5)
+        self.assertTrue(all(row[1] == 'India' for row in buffer))
+
+    def test_empty_result_when_filter_matches_nothing(self):
+        sql = "SELECT cityName FROM segment WHERE countryName = '__NO_SUCH_COUNTRY__' LIMIT 5"
+        df, buffer = self.get_response(sql, ['cityName'])
+        self.assertEqual(buffer, [])
+
+    def test_and_filter_with_order_by(self):
+        sql = ("SELECT cityName FROM segment "
+               "WHERE countryName = 'India' AND cityName = 'Mumbai' "
+               "ORDER BY timestamp LIMIT 3")
+        df, buffer = self.get_response(sql, ['cityName'])
+        self.assertEqual(buffer, [['Mumbai'], ['Mumbai'], ['Mumbai']])
+
+    def test_or_filter_select(self):
+        sql = ("SELECT countryName FROM segment "
+               "WHERE countryName = 'India' OR countryName = 'Argentina' "
+               "ORDER BY countryName LIMIT 200")
+        df, buffer = self.get_response(sql, ['countryName'])
+        self.assertEqual(len(buffer), 139)
+        self.assertEqual(set(row[0] for row in buffer), {'India', 'Argentina'})
         
 if __name__ == '__main__':
     unittest.main()
