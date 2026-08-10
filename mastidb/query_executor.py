@@ -4,6 +4,7 @@ from mastidb.non_aggregate_segment_query_processor import NonAggregateSegmentQue
 from mastidb.result_set import ResultSet
 from .aggregator import Aggregator
 from .parse_helpers import ParsedQuery, QueryType
+from .post_aggregator import PostAggregator
 from .segment import Segment
 from .segment_ingester import SegmentIngester
 from .aggregate_segment_query_processor import AggregateSegmentQueryProcessor
@@ -33,11 +34,10 @@ class QueryExecutor:
         if query_type == QueryType.AGGREGATION:
             # Aggregation Functions are shared by segment aggregation and post-aggregation (p0, p1, ...).
             aggregation_functions = Aggregator.build_aggregation_functions(parsed_query.aggregate_expressions)
-            processor = AggregateSegmentQueryProcessor(
-                self.segment, parsed_query=parsed_query, aggregation_functions=aggregation_functions)
-            partial = processor.process_query()
+            partial = AggregateSegmentQueryProcessor(
+                self.segment, parsed_query=parsed_query, aggregation_functions=aggregation_functions).process_query()
             logger.info("[execute] Performing Post-aggregation")
-            return processor.perform_post_aggregation(partial)
+            return PostAggregator(parsed_query, aggregation_functions).perform_post_aggregation(partial)
         elif query_type == QueryType.NON_AGGREGATION:
             return NonAggregateSegmentQueryProcessor(self.segment, parsed_query=parsed_query).process_query()
         else:
