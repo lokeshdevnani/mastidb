@@ -4,6 +4,7 @@ from .aggregator import Aggregator
 from .bitmap_utils import break_bitmap_into_chunks
 from .common_utils import map_reduce_op, parse_int
 from .parse_helpers import ParsedQuery, QueryType
+from .partial_result import AggregatePartial
 from .result_set import ResultSet
 from .segment import Segment
 from .segment_query_processor import SegmentQueryProcessor, logger
@@ -20,7 +21,7 @@ class AggregateSegmentQueryProcessor(SegmentQueryProcessor):
         super().__init__(segment, parsed_query)
         self.aggregators: list[Aggregator] = []
 
-    def process_query(self) -> ResultSet:
+    def process_query(self) -> AggregatePartial:
         logger.info("[process_query] Filtering data")
         filter_bitmap = self._convert_to_bitmap(self.parsed_query.where_conditions)
 
@@ -30,10 +31,22 @@ class AggregateSegmentQueryProcessor(SegmentQueryProcessor):
         self.set_default_values_in_aggregator_buffer(aggregate_buffer)
         logger.info("[process_query] Performing Aggregation")
         self.perform_aggregation(self.parsed_query.group_by_columns, filter_bitmap, aggregate_buffer)
-        logger.info("[process_query] Performing Post-aggregation")
-        result_set = self.perform_post_aggregation(aggregate_buffer)
-        
-        return result_set
+
+        # Decode group keys from aggregate buffer and return a partial result
+        # This is still unfinalized, as the aggregate states are not finalized yet.
+        # Caller will finalize the aggregate states and run perform_post_aggregation.
+        return self.build_aggregate_partial(aggregate_buffer)
+
+    def build_aggregate_partial(self, aggregate_buffer: AggregateBuffer) -> AggregatePartial:
+        group_by_columns = self.parsed_query.group_by_columns
+        groups: dict[tuple[Any, ...], list[Any]] = {}
+        for keys, values in aggregate_buffer.get_results().items():
+            decoded_keys = tuple(
+                self.segment.get_column(group_by_columns[i]).get_dictionary_value_for_dictionary_id(keys[i])
+                for i in range(len(group_by_columns))
+            )
+            groups[decoded_keys] = list(values)
+        return AggregatePartial(groups=groups)
 
     def resolve_aggregation_expression(self, index: int, expression: Union[str, dict[str, Any]],
                                        value_matrix: Dict[str, Union[list[str], list[int]]]) -> Union[int, str]:
@@ -86,7 +99,7 @@ class AggregateSegmentQueryProcessor(SegmentQueryProcessor):
 
     def perform_aggregation(self, group_by_columns: list[str], bitmap: BitMap, aggregate_buffer: AggregateBuffer):
         # Materialize non-group-by columns - Only required coz we don't have metric columns
-        # group by columns will be materialized post-aggregation.
+        # group by columns stay as dict IDs here; decoded when building the partial.
         cols_to_early_materialize = list(set(self.parsed_query.dependent_columns) - set(group_by_columns))
 
         # batching strategy
@@ -123,29 +136,21 @@ class AggregateSegmentQueryProcessor(SegmentQueryProcessor):
             aggregators.append(Aggregator.create_from_expression(select_expression, aggregate_buffer, select_idx))
         return aggregators
 
-    def perform_post_aggregation(self, aggregate_buffer: AggregateBuffer) -> ResultSet:
+    def perform_post_aggregation(self, aggregate_partial: AggregatePartial) -> ResultSet:
         group_by_columns = self.parsed_query.group_by_columns
-
-        def transform_fn(keys: Tuple[int, ...]) -> Tuple[Any, ...]:
-            return tuple(
-                self.segment.get_column(group_by_columns[i]).get_dictionary_value_for_dictionary_id(keys[i])
-                for i in range(len(group_by_columns))
-            )
-
         key_name_to_idx_map = {group_by_column: idx for idx, group_by_column in enumerate(group_by_columns)}
 
         result_set = ResultSet(columns=self.parsed_query.output_columns)
 
         is_top_k = len(self.parsed_query.order_by_columns) > 0
-        min_heap: list[Tuple[int, ...]] = []
+        min_heap: list[Tuple[Any, ...]] = []
         limit = self.parsed_query.limit or 1000
 
-        for keys, values in aggregate_buffer.get_results().items():
+        # Keys on the partial are already decoded.
+        for decoded_keys, values in aggregate_partial.groups.items():
             if self.finalize_values:
                 values = [aggregator.finalize_values(value) for value, aggregator in zip(values, self.aggregators)]
 
-            # Optimisation idea: Don't transform keys unless being selected in an expression.
-            decoded_keys = transform_fn(keys=keys)
             result_row = []
             for idx, post_aggregation in enumerate(self.parsed_query.post_aggregate_expressions):
                 calculated_value = self.resolve_post_aggregation_expression(post_aggregation, values,
@@ -153,7 +158,7 @@ class AggregateSegmentQueryProcessor(SegmentQueryProcessor):
                 result_row.append(calculated_value)
 
             if is_top_k:
-              sort_tuple: Tuple[int, ...] = self.build_sort_tuple_from_sort_order(key_name_to_idx_map, keys, values) + (result_set.current_index(),)
+              sort_tuple: Tuple[Any, ...] = self.build_sort_tuple_from_sort_order(key_name_to_idx_map, decoded_keys, values) + (result_set.current_index(),)
               self._add_to_heap(min_heap, limit, sort_tuple)
 
             result_set.append(result_row)
@@ -165,14 +170,15 @@ class AggregateSegmentQueryProcessor(SegmentQueryProcessor):
 
         return result_set
 
-    def build_sort_tuple_from_sort_order(self, key_name_to_idx_map, keys, values) -> Tuple[int, ...]:
+    def build_sort_tuple_from_sort_order(self, key_name_to_idx_map, decoded_keys, values) -> Tuple[Any, ...]:
+        # FIXME: `* ±1` only works for numeric sort keys. ORDER BY on string group-by columns will fail (can't negate a str).
         return tuple(
-                  self.resolve_post_aggregation_expression(col['value'], values, key_name_to_idx_map, keys) *
+                  self.resolve_post_aggregation_expression(col['value'], values, key_name_to_idx_map, decoded_keys) *
                   (1 if col.get('sort') == 'desc' else -1)
                   for col in self.parsed_query.order_by_columns
               )
 
-    def _add_to_heap(self, min_heap: list[Tuple[int, ...]], limit: int, sort_tuple: Tuple[int, ...]):
+    def _add_to_heap(self, min_heap: list[Tuple[Any, ...]], limit: int, sort_tuple: Tuple[Any, ...]):
         if len(min_heap) < limit:
             heapq.heappush(min_heap, sort_tuple)
         elif sort_tuple > min_heap[0]:

@@ -30,7 +30,10 @@ class QueryExecutor:
         logger.info('Query identifier as %s query', query_type)
 
         if query_type == QueryType.AGGREGATION:
-            return AggregateSegmentQueryProcessor(self.segment, parsed_query=parsed_query).process_query()
+            processor = AggregateSegmentQueryProcessor(self.segment, parsed_query=parsed_query)
+            partial = processor.process_query()
+            logger.info("[execute] Performing Post-aggregation")
+            return processor.perform_post_aggregation(partial)
         elif query_type == QueryType.NON_AGGREGATION:
             return NonAggregateSegmentQueryProcessor(self.segment, parsed_query=parsed_query).process_query()
         else:
