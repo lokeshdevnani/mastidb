@@ -23,11 +23,20 @@ class Aggregator:
         return self.aggregation_function.finalize(value)
 
     @staticmethod
-    def create_from_expression(expression: dict[str, Any], aggregate_buffer: AggregateBuffer, value_idx: int) -> 'Aggregator':
-        op, args = parse_helpers.unpack_op_args(expression)
-        agg_function_cls = Aggregator.find_aggregation_function(op, expression)
+    def build_aggregation_functions(aggregate_expressions: dict) -> list[AggregationFunction]:
+        """Discover aggregation functions once, in p0/p1/… order matching partial value slots."""
+        functions: list[AggregationFunction] = []
+        for expression in aggregate_expressions.values():
+            op, _args = parse_helpers.unpack_op_args(expression)
+            functions.append(Aggregator.find_aggregation_function(op, expression)())
+        return functions
+
+    @staticmethod
+    def create_from_expression(expression: dict[str, Any], aggregate_buffer: AggregateBuffer, value_idx: int,
+                                aggregation_function: AggregationFunction) -> 'Aggregator':
+        _op, args = parse_helpers.unpack_op_args(expression)
         return Aggregator(aggregate_buffer=aggregate_buffer,
-                          aggregation_function=agg_function_cls(),
+                          aggregation_function=aggregation_function,
                           value_idx=value_idx,
                           expression_args=args)
 

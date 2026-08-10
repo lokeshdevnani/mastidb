@@ -1,5 +1,6 @@
 from . import parse_helpers
 from .aggregate_buffer import AggregateBuffer
+from .aggregate_functions import AggregationFunction
 from .aggregator import Aggregator
 from .bitmap_utils import break_bitmap_into_chunks
 from .common_utils import map_reduce_op, parse_int
@@ -17,8 +18,10 @@ from typing import Any, Dict, Tuple, Union
 
 
 class AggregateSegmentQueryProcessor(SegmentQueryProcessor):
-    def __init__(self, segment: Segment, parsed_query: ParsedQuery):
+    def __init__(self, segment: Segment, parsed_query: ParsedQuery,
+                 aggregation_functions: list[AggregationFunction]):
         super().__init__(segment, parsed_query)
+        self.aggregation_functions = aggregation_functions
         self.aggregators: list[Aggregator] = []
 
     def process_query(self) -> AggregatePartial:
@@ -132,8 +135,10 @@ class AggregateSegmentQueryProcessor(SegmentQueryProcessor):
 
     def build_aggregators(self, aggregate_buffer: AggregateBuffer) -> list[Aggregator]:
         aggregators = []
-        for select_idx, select_expression in enumerate(self.parsed_query.aggregate_expressions.values()):
-            aggregators.append(Aggregator.create_from_expression(select_expression, aggregate_buffer, select_idx))
+        for select_idx, (select_expression, aggregation_function) in enumerate(
+                zip(self.parsed_query.aggregate_expressions.values(), self.aggregation_functions)):
+            aggregators.append(Aggregator.create_from_expression(select_expression, aggregate_buffer, select_idx,
+                                                                 aggregation_function))
         return aggregators
 
     def perform_post_aggregation(self, aggregate_partial: AggregatePartial) -> ResultSet:
@@ -149,7 +154,7 @@ class AggregateSegmentQueryProcessor(SegmentQueryProcessor):
         # Keys on the partial are already decoded.
         for decoded_keys, values in aggregate_partial.groups.items():
             if self.finalize_values:
-                values = [aggregator.finalize_values(value) for value, aggregator in zip(values, self.aggregators)]
+                values = [fn.finalize(value) for value, fn in zip(values, self.aggregation_functions)]
 
             result_row = []
             for idx, post_aggregation in enumerate(self.parsed_query.post_aggregate_expressions):
