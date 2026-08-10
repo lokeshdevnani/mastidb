@@ -13,13 +13,13 @@ from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.styles import Style
 import traceback
-from .segment import Segment
+from .table import Table
 from .result_set import ResultSet
 
 class MastiDBConsole:
-    def __init__(self, segment: Segment):
+    def __init__(self, table: Table):
         self.console = Console()
-        self.segment = segment
+        self.table = table
         self.sql_completer = WordCompleter([
             'select', 'as', 'from', 'where', 'group', 'by', 'order', 'limit', 'having'
             'and', 'or', '=', 'in',
@@ -97,6 +97,6 @@ class MastiDBConsole:
 
     def get_results(self, sql: str):
         t0_total, t0_cpu = time.time(), time.process_time()
-        results = QueryExecutor(self.segment).execute(sql)
+        results = QueryExecutor(self.table).execute(sql)
         time_total, time_cpu = time.time() - t0_total, time.process_time() - t0_cpu
         return results, time_total, time_cpu

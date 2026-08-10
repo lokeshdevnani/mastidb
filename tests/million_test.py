@@ -6,6 +6,7 @@ from pprint import pprint
 from mastidb.parse_helpers import ParsedQuery
 from mastidb.query_executor import QueryExecutor
 from mastidb.segment import Segment
+from mastidb.table import Table
 from mastidb.aggregate_segment_query_processor import AggregateSegmentQueryProcessor
 
 
@@ -17,7 +18,7 @@ class PerfTest:
 
     def get_results(self, sql):
         t0_total, t0_cpu = time.time(), time.process_time()
-        results = QueryExecutor(self.segment).execute(sql)
+        results = QueryExecutor(Table([self.segment])).execute(sql)
         time_total, time_cpu = time.time() - t0_total, time.process_time() - t0_cpu
         return results, time_total, time_cpu
 

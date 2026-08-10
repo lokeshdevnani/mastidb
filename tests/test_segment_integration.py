@@ -5,6 +5,7 @@ import pandas as pd
 from mastidb.query_executor import QueryExecutor
 from mastidb.segment import Segment
 from mastidb.segment_ingester import SegmentIngester
+from mastidb.table import Table
 
 
 class TestSegmentIntegration(unittest.TestCase):
@@ -16,7 +17,7 @@ class TestSegmentIntegration(unittest.TestCase):
         cls.segment = Segment.load('/tmp/wikidata')
 
     def get_response(self, sql, headers):
-        buffer = QueryExecutor(self.segment).execute(sql).get_results()
+        buffer = QueryExecutor(Table([self.segment])).execute(sql).get_results()
         df = pd.DataFrame(buffer, columns=headers)
         return df, buffer
 
