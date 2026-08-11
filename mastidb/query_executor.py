@@ -4,6 +4,7 @@ from mastidb.non_aggregate_segment_query_processor import NonAggregateSegmentQue
 from mastidb.result_set import ResultSet
 from .aggregator import Aggregator
 from .parse_helpers import ParsedQuery, QueryType
+from .partial_result import AggregatePartial
 from .post_aggregator import PostAggregator
 from .table import Table
 from .aggregate_segment_query_processor import AggregateSegmentQueryProcessor
@@ -24,8 +25,6 @@ class QueryExecutor:
         return QueryExecutor(Table.from_ingest_source(data_dir, source_file))
 
     def execute(self, sql: str) -> ResultSet:
-        # Single-segment path for now; fan-out over self.table.segments comes later.
-        segment = self.table.segments[0]
         parsed_query = ParsedQuery.parse_from_sql(sql, self.table.column_names())
         query_type = parsed_query.query_type
         logger.info('Query identifier as %s query', query_type)
@@ -33,12 +32,22 @@ class QueryExecutor:
         if query_type == QueryType.AGGREGATION:
             # Aggregation Functions are shared by segment aggregation and post-aggregation (p0, p1, ...).
             aggregation_functions = Aggregator.build_aggregation_functions(parsed_query.aggregate_expressions)
-            partial = AggregateSegmentQueryProcessor(
-                segment, parsed_query=parsed_query, aggregation_functions=aggregation_functions).process_query()
+            partials = [
+                AggregateSegmentQueryProcessor(
+                    segment, parsed_query=parsed_query, aggregation_functions=aggregation_functions
+                ).process_query()
+                for segment in self.table.segments
+            ]
+            merged = AggregatePartial.merge(partials, aggregation_functions)
             logger.info("[execute] Performing Post-aggregation")
-            return PostAggregator(parsed_query, aggregation_functions).perform_post_aggregation(partial)
+            return PostAggregator(parsed_query, aggregation_functions).perform_post_aggregation(merged)
         elif query_type == QueryType.NON_AGGREGATION:
-            return NonAggregateSegmentQueryProcessor(segment, parsed_query=parsed_query).process_query()
+            # FIXME: multi-segment non-aggregate fan-out / NonAggregatePartial merge not implemented yet.
+            if len(self.table.segments) > 1:
+                raise NotImplementedError("Non-aggregate queries over multiple segments are not supported yet")
+            return NonAggregateSegmentQueryProcessor(
+                self.table.segments[0], parsed_query=parsed_query
+            ).process_query()
         else:
             raise NotImplementedError("Unknown query type: %s" % query_type)
 

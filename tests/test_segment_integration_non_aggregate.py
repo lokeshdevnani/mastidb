@@ -1,10 +1,7 @@
 import unittest
 import pandas as pd
 
-from mastidb.parse_helpers import ParsedQuery
 from mastidb.query_executor import QueryExecutor
-from mastidb.segment import Segment
-from mastidb.segment_ingester import SegmentIngester
 from mastidb.table import Table
 
 
@@ -12,12 +9,10 @@ class TestSegmentIntegrationNonAggregate(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Load the data and create a common Segment instance for reuse
-        segment = SegmentIngester.ingest('/tmp/wikidata', 'tests/datasets/wikipedia.json')
-        cls.segment = Segment.load('/tmp/wikidata')
+        cls.table = Table.from_ingest_source('/tmp/wikidata', 'tests/datasets/wikipedia.json')
 
     def get_response(self, sql, headers):
-        buffer = QueryExecutor(Table([self.segment])).execute(sql).get_results()
+        buffer = QueryExecutor(self.table).execute(sql).get_results()
         df = pd.DataFrame(buffer, columns=headers)
         return df, buffer
 

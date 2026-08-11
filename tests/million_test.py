@@ -1,24 +1,22 @@
 import cProfile
 import logging
 import time
-from pprint import pprint
 
-from mastidb.parse_helpers import ParsedQuery
 from mastidb.query_executor import QueryExecutor
-from mastidb.segment import Segment
 from mastidb.table import Table
-from mastidb.aggregate_segment_query_processor import AggregateSegmentQueryProcessor
+
+
+MENUITEM_SOURCE = 'tests/dataset_menu/MenuItem.csv'
 
 
 class PerfTest:
-    def __init__(self):
-        # self.segment = Segment.create('/tmp/menuitem2', 'tests/dataset_menu/MenuItem.csv')
-        self.segment = Segment.load('/tmp/menuitem')
+    def __init__(self, table: Table):
+        self.table = table
         self.results = []
 
     def get_results(self, sql):
         t0_total, t0_cpu = time.time(), time.process_time()
-        results = QueryExecutor(Table([self.segment])).execute(sql)
+        results = QueryExecutor(self.table).execute(sql)
         time_total, time_cpu = time.time() - t0_total, time.process_time() - t0_cpu
         return results, time_total, time_cpu
 
@@ -31,7 +29,11 @@ class PerfTest:
 
 # id,menu_page_id,price,high_price,dish_id,created_at,updated_at,xpos,ypos
 def run():
-    pt = PerfTest()
+    # Load an already-built table (default). To rebuild / split:
+    # table = Table.from_ingest_source('/tmp/menuitem', MENUITEM_SOURCE)
+    # table = Table.from_ingest_source('/tmp/menuitem_multi', MENUITEM_SOURCE, num_segments=2)
+    table = Table.from_data_dir('/tmp/menuitem')
+    pt = PerfTest(table)
     pt.record_run("SELECT COUNT(id)")
     pt.record_run("SELECT menu_page_id, count(id) GROUP BY menu_page_id")
     pt.record_run("SELECT count(id) WHERE price = '0.25'")
@@ -72,6 +74,17 @@ def run():
 
 # Results - Mon Dec 04 23:00 (Post pushing down cast operation)
 # [['SELECT COUNT(id)', 1.692824125289917, 1.5971440000000001], ['SELECT menu_page_id, count(id) GROUP BY menu_page_id', 1.7722468376159668, 1.7523300000000002], ["SELECT count(id) WHERE price = '0.25'", 0.1878800392150879, 0.15658299999999992], ["SELECT COUNT(menu_page_id) WHERE dish_id ='1'", 0.0086669921875, 0.004997999999999614], ['SELECT COUNT(price), SUM(price), AVG(price), menu_page_id GROUP BY menu_page_id', 2.882625102996826, 2.8611500000000003]]
+
+# Results - Tue Aug 11 2026 (warm, mypyc)
+# [['SELECT COUNT(id)', 1.446],
+#  ['SELECT menu_page_id, count(id) GROUP BY menu_page_id', 1.976],
+#  ["SELECT count(id) WHERE price = '0.25'", 0.153],
+#  ["SELECT COUNT(menu_page_id) WHERE dish_id ='1'", 0.003],
+#  ['SELECT COUNT(price), SUM(price), AVG(price), menu_page_id GROUP BY menu_page_id', 3.013],
+#  ['SELECT menu_page_id, COUNT(id) GROUP BY menu_page_id ORDER BY COUNT(id) DESC LIMIT 10', 2.084]]
+#
+# GROUP BYs are a bit slower vs Dec 04 because we added an extra step: decode group keys
+# and rebuild the hash map into AggregatePartial (for multi-segment merge).
 
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] [%(name)s] [%(levelname)s] - %(message)s')

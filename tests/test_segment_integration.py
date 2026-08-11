@@ -1,23 +1,21 @@
-import logging
 import unittest
 import pandas as pd
 
 from mastidb.query_executor import QueryExecutor
-from mastidb.segment import Segment
-from mastidb.segment_ingester import SegmentIngester
 from mastidb.table import Table
+
+
+WIKIDATA_SOURCE = 'tests/datasets/wikipedia.json'
 
 
 class TestSegmentIntegration(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Load the data and create a common Segment instance for reuse
-        segment = SegmentIngester.ingest('/tmp/wikidata', 'tests/datasets/wikipedia.json')
-        cls.segment = Segment.load('/tmp/wikidata')
+        cls.table = Table.from_ingest_source('/tmp/wikidata', WIKIDATA_SOURCE)
 
     def get_response(self, sql, headers):
-        buffer = QueryExecutor(Table([self.segment])).execute(sql).get_results()
+        buffer = QueryExecutor(self.table).execute(sql).get_results()
         df = pd.DataFrame(buffer, columns=headers)
         return df, buffer
 
@@ -99,7 +97,20 @@ class TestSegmentIntegration(unittest.TestCase):
         sql = "SELECT COUNT(*) FROM segment WHERE countryName = 'India' AND cityName = 'Mumbai'"
         df, buffer = self.get_response(sql, ['count'])
         self.assertEqual(buffer, [[9]])
-        
-        
+
+
+class TestMultiSegmentIntegration(TestSegmentIntegration):
+    """Same tests as single-segment, against a 2-segment table."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.table = Table.from_ingest_source(
+            '/tmp/wikidata_multi', WIKIDATA_SOURCE, num_segments=2
+        )
+
+    def test_loads_two_segments(self):
+        self.assertEqual(len(self.table.segments), 2)
+
+
 if __name__ == '__main__':
     unittest.main()
