@@ -26,3 +26,9 @@ class AggregatePartial:
                         for i, fn in enumerate(aggregation_functions)
                     ]
         return AggregatePartial(groups=combined)
+
+
+@dataclass
+class NonAggregatePartial:
+    """Projected rows from one segment (before the executor builds a ResultSet)."""
+    rows: list[list[Any]]

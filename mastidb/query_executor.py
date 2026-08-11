@@ -3,6 +3,7 @@ import logging
 from mastidb.non_aggregate_segment_query_processor import NonAggregateSegmentQueryProcessor
 from mastidb.result_set import ResultSet
 from .aggregator import Aggregator
+from .non_aggregate_finalizer import NonAggregateFinalizer
 from .parse_helpers import ParsedQuery, QueryType
 from .partial_result import AggregatePartial
 from .post_aggregator import PostAggregator
@@ -42,12 +43,13 @@ class QueryExecutor:
             logger.info("[execute] Performing Post-aggregation")
             return PostAggregator(parsed_query, aggregation_functions).perform_post_aggregation(merged)
         elif query_type == QueryType.NON_AGGREGATION:
-            # FIXME: multi-segment non-aggregate fan-out / NonAggregatePartial merge not implemented yet.
+            # FIXME: multi-segment fan-out / NonAggregatePartial merge not implemented yet.
             if len(self.table.segments) > 1:
                 raise NotImplementedError("Non-aggregate queries over multiple segments are not supported yet")
-            return NonAggregateSegmentQueryProcessor(
+            partial = NonAggregateSegmentQueryProcessor(
                 self.table.segments[0], parsed_query=parsed_query
             ).process_query()
+            return NonAggregateFinalizer(parsed_query).finalize(partial)
         else:
             raise NotImplementedError("Unknown query type: %s" % query_type)
 

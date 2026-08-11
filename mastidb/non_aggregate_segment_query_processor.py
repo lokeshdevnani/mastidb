@@ -4,7 +4,7 @@ from typing import Any, Dict, Tuple, Union
 from mastidb import parse_helpers
 from mastidb.common_utils import map_reduce_op
 from mastidb.parse_helpers import ParsedQuery
-from mastidb.result_set import ResultSet
+from mastidb.partial_result import NonAggregatePartial
 from mastidb.segment import Segment
 from mastidb.segment_query_processor import SegmentQueryProcessor
 from .bitmap_utils import break_bitmap_into_chunks
@@ -18,18 +18,20 @@ class NonAggregateSegmentQueryProcessor(SegmentQueryProcessor):
     def __init__(self, segment: Segment, parsed_query: ParsedQuery):
         super().__init__(segment, parsed_query)
 
-    def process_query(self) -> ResultSet:
+    def process_query(self) -> NonAggregatePartial:
         logger.info("[process_query] Filtering data")
         filter_bitmap = self._convert_to_bitmap(self.parsed_query.where_conditions)
-        
-        logger.info("[process_query] Selecting data")
-        result_set = self.process_non_aggregation_query(filter_bitmap)
 
-        return result_set
+        logger.info("[process_query] Selecting data")
+        return self.process_non_aggregation_query(filter_bitmap)
 
     def _process_bitmap_chunks(self, bitmap_chunks, order_by_cols, limit=None, row_number_to_result_row_index=None):
-        """Process bitmap chunks and populate the result set."""
-        result_set = ResultSet(columns=self.parsed_query.output_columns, row_count=len(row_number_to_result_row_index or []))
+        """Process bitmap chunks into projected rows."""
+        if order_by_cols:
+            rows: list[list[Any]] = [None] * len(row_number_to_result_row_index)  # type: ignore
+        else:
+            rows = []
+
         for bitmap_chunk in bitmap_chunks:
             value_matrix = self.generate_value_matrix(
                 bitmap_chunk, self.parsed_query.dependent_columns, self.parsed_query.dependent_columns)
@@ -39,15 +41,15 @@ class NonAggregateSegmentQueryProcessor(SegmentQueryProcessor):
                               for select_statement in self.parsed_query.select_statements]
 
                 if order_by_cols:
-                    result_set.insert_at(row_number_to_result_row_index[index], result_row)
+                    rows[row_number_to_result_row_index[index]] = result_row
                 else:
-                    result_set.append(result_row)
-                    if limit and result_set.current_index() >= limit:
-                        return result_set
+                    rows.append(result_row)
+                    if limit and len(rows) >= limit:
+                        return NonAggregatePartial(rows=rows)
 
-        return result_set
+        return NonAggregatePartial(rows=rows)
 
-    def process_non_aggregation_query(self, bitmap: BitMap) -> ResultSet:
+    def process_non_aggregation_query(self, bitmap: BitMap) -> NonAggregatePartial:
         order_by_cols = self.parsed_query.order_by_columns
         limit = self.parsed_query.limit or 10
 
