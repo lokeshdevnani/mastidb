@@ -43,13 +43,11 @@ class QueryExecutor:
             logger.info("[execute] Performing Post-aggregation")
             return PostAggregator(parsed_query, aggregation_functions).perform_post_aggregation(merged)
         elif query_type == QueryType.NON_AGGREGATION:
-            # FIXME: multi-segment fan-out / NonAggregatePartial merge not implemented yet.
-            if len(self.table.segments) > 1:
-                raise NotImplementedError("Non-aggregate queries over multiple segments are not supported yet")
-            partial = NonAggregateSegmentQueryProcessor(
-                self.table.segments[0], parsed_query=parsed_query
-            ).process_query()
-            return NonAggregateFinalizer(parsed_query).finalize(partial)
+            partials = [
+                NonAggregateSegmentQueryProcessor(segment, parsed_query=parsed_query).process_query()
+                for segment in self.table.segments
+            ]
+            return NonAggregateFinalizer(parsed_query).finalize(partials)
         else:
             raise NotImplementedError("Unknown query type: %s" % query_type)
 

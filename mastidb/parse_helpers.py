@@ -166,7 +166,7 @@ class ParsedQuery:
         where_conditions = parsed.get('where', {})
         group_by_columns = listwrap(parsed.get('groupby'))
         order_by_columns = listwrap(parsed.get('orderby'))
-        dependent_columns = get_dependent_columns(select_statements + group_by_columns)
+        dependent_columns = get_dependent_columns(select_statements + group_by_columns + order_by_columns)
         aggregate_expressions, post_aggregate_expressions, order_by_columns = extract_aggregations(select_statements, order_by_columns)
         limit = parsed.get('limit')
         
