@@ -113,6 +113,8 @@ Those numbers are real: they're the `countryName` column of the Wikipedia edits 
 
 Everything the engine needs to jump into the middle of a column is in these ten integers. No section headers inside the payload, no scanning to find where the bitmaps start. One 40-byte read and you can seek anywhere.
 
+Being ten *signed* `int32`s also sets the format's hard ceilings: a single column payload can't exceed ~2 GB, and a segment can't hold more than ~2.1B rows, because past that the offsets wrap. Nothing validates this at write time yet — it's on the roadmap — and in practice you'd want more segments long before you got there.
+
 ### 2.4 The payload file: five sections, back to back
 
 A `.mastidb` file is a stack of five sections, in this order. The metadata offsets are the boundaries between them.
@@ -197,7 +199,7 @@ Ingestion is deliberately boring: it exists so that querying can be interesting.
 
 ```mermaid
 flowchart TD
-    F["file.csv / .tsv / .json / .ndjson"] --> DF["pandas DataFrame<br/>the whole file, in memory"]
+    F["file.csv / .tsv / .json / .ndjson"] --> DF["ParsedSource<br/>columns in memory"]
     DF -->|"optional: slice into N chunks"| CH["chunk → seg_0/, seg_1/, …"]
     CH --> COL["for each column in the chunk"]
     COL --> E1["1. str() every value"]
@@ -211,13 +213,13 @@ flowchart TD
 
 A few choices worth naming:
 
-**Everything becomes a string.** `str()` is applied to every value before encoding, so there is exactly one column type — `DIMENSION` — and one code path. It's the reason this engine got built at all instead of getting stuck in a type system, and it's also the single largest thing holding it back: `SUM(price)` has to materialize `"0.25"` and parse it per row, numeric sorts are lexicographic, and `NaN` sneaks in as a string. `METRIC` exists in the enum as a promise.
+**Everything becomes a string.** `str()` is applied to every value before encoding, so there is exactly one column type — `DIMENSION` — and one code path. It's the reason this engine got built at all instead of getting stuck in a type system, and it's also the single largest thing holding it back: `SUM(price)` has to materialize `"0.25"` and parse it per row, numeric sorts are lexicographic, and JSON `null` becomes the string `"None"`. `METRIC` exists in the enum as a promise.
 
 **Bitmaps are built in one pass, not one pass per value.** Bucket every row-id into a list-of-lists indexed by dict-id, then hand each bucket to `BitMap()`. Cardinality `k` over `n` rows costs one traversal, not `k`.
 
-**Segmenting is a row-range split.** `num_segments=2` slices the DataFrame in half and ingests each half into its own directory. Each segment builds its **own** dictionary, so the same string has different ids in different segments — which is precisely why cross-segment query state has to travel as decoded values, a constraint that shapes all of [§5](#5-aggregate-queries-in-detail).
+**Segmenting is a row-range split.** `num_segments=2` slices the in-memory columns in half and ingests each half into its own directory. Each segment builds its **own** dictionary, so the same string has different ids in different segments — which is precisely why cross-segment query state has to travel as decoded values, a constraint that shapes all of [§5](#5-aggregate-queries-in-detail).
 
-**The whole file goes through RAM.** pandas parses everything, then each column is encoded and serialized fully in memory before hitting disk. Ingest is bounded by memory, not by disk — the reason segmenting exists at all, and the reason streaming ingest sits on the roadmap.
+**The whole file goes through RAM.** `source_reader` parses everything with stdlib `csv` / `json`, then each column is encoded and serialized fully in memory before hitting disk. Ingest is bounded by memory, not by disk — the reason segmenting exists at all, and the reason streaming ingest sits on the roadmap. Values are stored as they appear: JSON `null` becomes `"None"`, CSV empty cells stay empty, timestamps stay the source string.
 
 ---
 
@@ -483,7 +485,7 @@ Explicitly *not* goals right now: a global on-disk dictionary, a distributed bro
 | Piece | Files | Role |
 | --- | --- | --- |
 | Storage | `segment.py`, `segment_column.py`, `segment_column_metadata.py`, `serialization_utils.py`, `data_accessor.py` | An immutable columnar chunk and the bytes it's made of |
-| Ingest | `segment_ingester.py` | File → encoded columns → disk |
+| Ingest | `source_reader.py`, `segment_ingester.py` | File → columns in RAM → encoded columns on disk |
 | Parsing | `parse_helpers.py` | SQL → `ParsedQuery` |
 | Segment processing | `segment_query_processor.py`, `aggregate_segment_query_processor.py`, `non_aggregate_segment_query_processor.py` | One segment + one `ParsedQuery` → one partial |
 | Aggregation state | `aggregate_functions.py`, `aggregator.py`, `aggregate_buffer.py` | Per-row state, plus `merge` / `finalize` |
@@ -530,7 +532,7 @@ And the space side of the ledger, from [§2.5](#25-what-all-this-costs): ~4 byte
 
 Things a reader will trip over, stated plainly. The full backlog lives in [ROADMAP.md](ROADMAP.md).
 
-- **Everything is a string.** One column type, `DIMENSION`. `METRIC` is an enum value and a promise. Numeric sorts are lexicographic, `SUM`/`AVG` parse per row, and `NaN` arrives as text.
+- **Everything is a string.** One column type, `DIMENSION`. `METRIC` is an enum value and a promise. Numeric sorts are lexicographic, `SUM`/`AVG` parse per row, and JSON `null` is stored as `"None"`.
 - **`ORDER BY` on a string group key in an aggregate query breaks.** The sort tuple negates values to flip direction, and you can't negate a string. Non-aggregate ordering already does this properly via `sort_keys.py`; the aggregate path needs the same treatment.
 - **`COUNT(DISTINCT)` across segments is wrong.** The state is a set of dict-ids, which are per-segment. It needs to hold decoded values before merging — see invariant 3 in [§7.1](#71-the-rules-that-keep-this-honest).
 - **Ingest overwrites, it doesn't append.** Running `ingest` again into the same directory rewrites that segment rather than adding one, so there's no way to grow a table incrementally yet.

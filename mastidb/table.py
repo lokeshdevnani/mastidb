@@ -1,23 +1,22 @@
 import os
 
-import pandas as pd
-
 from .common_utils import find_column_files
 from .segment import Segment
 from .segment_ingester import SegmentIngester
+from .source_reader import ParsedSource, read_source
 
 
-def _ingest_chunks(data_dir: str, df: pd.DataFrame, num_segments: int) -> None:
+def _ingest_chunks(data_dir: str, source: ParsedSource, num_segments: int) -> None:
     if num_segments == 1:
-        SegmentIngester.ingest_from_df(data_dir, df)
+        SegmentIngester.ingest_from_parsed(data_dir, source)
         return
 
-    chunk_size = (len(df) + num_segments - 1) // num_segments
+    chunk_size = (source.num_rows() + num_segments - 1) // num_segments
     for i in range(num_segments):
-        chunk = df.iloc[i * chunk_size:(i + 1) * chunk_size]
-        if len(chunk) == 0:
+        chunk = source.slice(i * chunk_size, (i + 1) * chunk_size)
+        if chunk.num_rows() == 0:
             break
-        SegmentIngester.ingest_from_df(f'{data_dir}/seg_{i}', chunk)
+        SegmentIngester.ingest_from_parsed(f'{data_dir}/seg_{i}', chunk)
 
 
 class Table:
@@ -52,6 +51,5 @@ class Table:
                            num_segments: int = 1) -> 'Table':
         if num_segments < 1:
             raise ValueError("num_segments must be >= 1")
-        df = SegmentIngester.convert_file_to_pandas(source_file)
-        _ingest_chunks(data_dir, df, num_segments)
+        _ingest_chunks(data_dir, read_source(source_file), num_segments)
         return Table.from_data_dir(data_dir)

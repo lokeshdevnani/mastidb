@@ -4,7 +4,4 @@ mo_sql_parsing==9.462.23329
 mypy==1.7.1
 Pygments==2.17.2
 pyroaring==0.4.4
-pandas==1.5.3
-pandas-stubs==2.1.1.230928
-numpy==1.26.2
 types-Pygments
