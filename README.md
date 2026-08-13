@@ -43,10 +43,12 @@ Also worth a look:
 MastiDB can be used in two primary ways: as a library in your Python projects or via its command line interface (CLI) for direct interaction. Here's a quick guide to get you started:
 
 ### Installation
-You can install mastidb from pip like regular people would.
+You can install mastidb from pip like regular people would. Needs Python 3.9 or newer.
 ```sh
 pip install mastidb
 ```
+
+Installing compiles the hot modules with [mypyc](https://mypyc.readthedocs.io/), so it takes a minute and wants a C compiler. If you don't have one, the build steps aside and you get the pure-Python version — same behaviour, just slower.
 
 If you're feeling tweaking the codebase, I'd encourage you to install from source.
 
@@ -54,7 +56,7 @@ If you're feeling tweaking the codebase, I'd encourage you to install from sourc
 git clone https://github.com/lokeshdevnani/mastidb.git
 cd mastidb
 pip install -r requirements.txt
-python setup.py install
+pip install -e .
 mastidb --help
 ```
 

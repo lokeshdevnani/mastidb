@@ -1,0 +1,17 @@
+include README.md
+include LICENSE
+include requirements.txt
+# Needed at build time: mypycify type-checks the sources, and this is what tells
+# it to tolerate the untyped third-party imports.
+include mypy.ini
+include ARCHITECTURE.md
+include ROADMAP.md
+include CONTRIBUTING.md
+recursive-include mastidb *.py
+
+# Not needed to build or use the package.
+prune tests
+prune assets
+prune scripts
+prune build
+global-exclude *.so *.pyc __pycache__

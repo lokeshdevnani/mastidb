@@ -142,8 +142,8 @@ def _get_output_cols(select_cols):
 
 
 class QueryType(Enum):
-    AGGREGATION:int = 1
-    NON_AGGREGATION:int = 2 
+    AGGREGATION = 1
+    NON_AGGREGATION = 2
 
 @dataclass
 class ParsedQuery:

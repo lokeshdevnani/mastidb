@@ -4,8 +4,8 @@ from enum import Enum
 
 
 class SegmentColumnType(Enum):
-    DIMENSION:int = 1
-    METRIC:int = 2
+    DIMENSION = 1
+    METRIC = 2
 
 
 @dataclass

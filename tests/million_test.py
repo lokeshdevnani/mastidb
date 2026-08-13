@@ -6,6 +6,7 @@ from mastidb.query_executor import QueryExecutor
 from mastidb.table import Table
 
 
+# Fetch this file first: python scripts/download_menu_dataset.py
 MENUITEM_SOURCE = 'tests/dataset_menu/MenuItem.csv'
 
 

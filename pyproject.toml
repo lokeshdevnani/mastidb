@@ -1,0 +1,11 @@
+[build-system]
+# mypy is a build-time dependency, not a runtime one: setup.py compiles the hot
+# modules with mypyc. Without it declared here, pip's isolated build has no mypy
+# and installing from an sdist fails before it starts.
+# Capped below 2.0 because a new mypy release can introduce new type errors,
+# and mypycify treats those as build failures.
+requires = ["setuptools>=64", "wheel", "mypy>=1.7,<2"]
+build-backend = "setuptools.build_meta"
+
+# Project metadata lives in setup.py, which has to stay around anyway to call
+# mypycify() for ext_modules.

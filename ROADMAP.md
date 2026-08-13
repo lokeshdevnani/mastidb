@@ -7,11 +7,14 @@ Design context for most of this: [`ARCHITECTURE.md`](ARCHITECTURE.md), especiall
 
 - Aggregate `ORDER BY` on string group keys — `PostAggregator` still uses `* ±1`; reuse `sort_keys`
 - `COUNT(DISTINCT)` across segments — hold decoded values in the set, not per-segment dict IDs
-- Typed columns — stop string-coercing everything; fix float/`NaN`, bool, numeric sort/agg
+- Typed columns — stop string-coercing everything; fix bool, numeric sort/agg
+- NULL handling — JSON `null` currently becomes the string `"None"`, indistinguishable from a real value; CSV empty cells stay empty
 
 ## Feature
 
 - Richer WHERE — ranges, `IN`, inequality; column vs column filters
+- Scalar functions in SELECT / ORDER BY — only `add` and `div` are wired up today
+- Aliases in ORDER BY — `SELECT COUNT(id) AS hits … ORDER BY hits`
 - Append-on-ingest — a second `ingest` into a table should add a segment, not overwrite one
 - Segment layout for many segments — `<table>/segments/seg_XXXXXX/`, discovered by listing or a small `_meta.json`; flat dirs keep loading as a one-segment table
 - Segment pruning / routing — open only segments that can match (bounds in metadata)
@@ -22,6 +25,12 @@ Design context for most of this: [`ARCHITECTURE.md`](ARCHITECTURE.md), especiall
 - Gorilla-style codecs — delta-of-delta / XOR float encoding for timestamp + metric columns
 - Compaction — CLI or background job: K small segments → one new segment with fresh local dictionaries, swapped into the table atomically
 
+## Robustness
+
+- Enforce metadata field limits — offsets are signed `int32`, so a column payload over ~2 GB silently wraps; validate at write time and raise instead
+- Explicit segment lifecycle — column file handles are closed in `__del__`; a `close()` / context manager would make cleanup deterministic
+- Read accounting — log bytes fetched / IOPS per query, so the storage trade is measurable rather than argued about
+
 ## Performance
 
 - Parallel segment fan-out — thread/process pool over `table.segments` inside `QueryExecutor` only; processors and merge stay unaware of it
@@ -29,6 +38,7 @@ Design context for most of this: [`ARCHITECTURE.md`](ARCHITECTURE.md), especiall
 - Sorted N-way merge for aggregates — emit partial groups in key order and stream the merge, for lower peak memory on high-cardinality `GROUP BY`
 - Single-segment GROUP BY decode fast path — skip decode+rehash when `len(segments) == 1`
 - Cache hot column metadata / bitmap lookups — `segment.py` TODO
+- Adaptive bitmap chunking — size chunks from actual selectivity; the current density threshold of `2` means the single-read branch never fires
 - Bit-pack the encoded list — `ceil(log2(uniq))` bits per row instead of a flat int32, trading arithmetic addressing for size
 
 ## Test

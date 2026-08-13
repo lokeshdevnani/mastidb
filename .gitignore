@@ -156,3 +156,7 @@ cython_debug/
 pypagecache
 .idea
 .DS*
+
+# Benchmark dataset - fetch with scripts/download_menu_dataset.py
+tests/dataset_menu/
+.scratch*

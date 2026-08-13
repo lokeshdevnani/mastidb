@@ -6,7 +6,7 @@ from mo_parsing import ParseException # type: ignore
 from pygments.lexers.sql import SqlLexer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, TextColumn
-from rich.table import Table
+from rich.table import Table as RichTable
 from rich import print
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
@@ -81,8 +81,8 @@ class MastiDBConsole:
                 self.console.print(console_table, justify="center")
         self.console.print(f"Fetched %d rows. Took %.2f seconds. CPU time %.2f" % (row_count, time_total, time_cpu))
 
-    def build_console_table(self, result_set: ResultSet):
-        table = Table(title="MastiDB")
+    def build_console_table(self, result_set: ResultSet) -> RichTable:
+        table = RichTable(title="MastiDB")
         colors = ["magenta", "cyan", "yellow", "red"]
         for i, col in enumerate(result_set.columns):
             table.add_column(col, no_wrap=False, style=colors[i % len(colors)])
