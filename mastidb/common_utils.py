@@ -58,6 +58,8 @@ def binary_search_with_reader(n: int, target: str, read_value_fn: Callable[[int]
     return -1
 
 def parse_int(val) -> int:
+  if val in ('', 'None', 'nan', None):
+      return 0
   float_val: float = float(val)
   if math.isnan(float_val):
       return 0
