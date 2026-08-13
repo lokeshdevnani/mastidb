@@ -67,15 +67,16 @@ Supports CSV, TSV, JSON, ndJSON
 
 ```sh
 mastidb ingest -d /path/to/a/new/dir -s /path/to/source/file.csv
+mastidb ingest -d /path/to/a/new/dir -s /path/to/source/file.csv --segments 4
 ```
 
 **Running SQL queries**
 
 ```sh
+mastidb query -d /path/to/mastidb/dir "SELECT COUNT(id)"
 mastidb console -d /path/to/mastidb/dir
 ```
-It will open a CLI console.
-
+`query` prints one result and exits. `console` opens the REPL.
 
 ```
 MastiDB > select count(id)
