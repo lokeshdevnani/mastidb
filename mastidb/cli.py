@@ -130,7 +130,7 @@ def _print_command_help(cmd: click.Command, ctx: click.Context):
         for param in arguments:
             table.add_row(
                 (param.metavar or param.name or '').upper(),
-                getattr(param, 'help', None) or _argument_help(cmd.name, param),
+                getattr(param, 'help', None) or _argument_help(cmd.name or '', param),
             )
         console.print(table)
         console.print()
@@ -253,9 +253,9 @@ def _print_next_steps(dataset_name: str, data_dir: str) -> None:
 
 
 class _DownloadProgress:
-    def __init__(self):
+    def __init__(self) -> None:
         self._progress: Progress | None = None
-        self._task = None
+        self._task: int | None = None
 
     def start(self, url: str, total: int) -> None:
         console.print(f'Downloading [cyan]{url}[/]')
