@@ -27,11 +27,11 @@ The integration tests under `tests/` are the real specification of query behavio
 For anything performance-related, `tests/million_test.py` is the yardstick. It needs the ~1.3M-row menu dataset, which is too big for git:
 
 ```sh
-python scripts/download_menu_dataset.py     # ~35 MB download, ~146 MB on disk
+mastidb demo menuitem                       # download + ingest into /tmp/menuitem
 python tests/million_test.py
 ```
 
-That script only uses the standard library and skips itself if the files are already there. `tests/datasets/datasets.md` has the details. `million_test.py` keeps a running log of timings as comments; paste your before/after numbers into the PR so the next person can see what moved.
+Before the package is installed, `python scripts/download_menu_dataset.py` is the stdlib-only download (same CSVs, into `tests/dataset_menu/`). `tests/datasets/datasets.md` has the details. `million_test.py` keeps a running log of timings as comments; paste your before/after numbers into the PR so the next person can see what moved.
 
 ## Cutting a release
 

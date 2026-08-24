@@ -10,6 +10,8 @@ on demand.
 
 Already have the files? It says so and does nothing. Pass --force to refetch.
 
+Once mastidb is installed, `mastidb demo menuitem` does this download and the ingest.
+
 Only needs the standard library, so it works before you've installed anything.
 """
 
@@ -127,7 +129,9 @@ def main() -> int:
         return 1
 
     print(f"\nDone. {len(extracted)} files in {dest}")
-    print("Now build a table from it:")
+    print("Once mastidb is installed, load it with:")
+    print("  mastidb demo menuitem")
+    print("Or build a table yourself:")
     print("  python -c \"from mastidb import Table; "
           "Table.from_ingest_source('/tmp/menuitem', 'tests/dataset_menu/MenuItem.csv')\"")
     return 0

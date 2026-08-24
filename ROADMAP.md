@@ -58,3 +58,6 @@ Design context for most of this: [`ARCHITECTURE.md`](ARCHITECTURE.md), especiall
 - Global on-disk dictionary
 - Distributed broker / historical split
 - Schema evolution, catalog service
+
+## Misc
+- Limit doesn't work without order by in aggregates.

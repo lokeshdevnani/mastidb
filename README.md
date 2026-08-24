@@ -61,9 +61,20 @@ mastidb --help
 ```
 
 ### Using CLI
-**Ingesting a file via CLI.**
 
-Supports CSV, TSV, JSON, ndJSON
+No file of your own? Load a sample. `wikipedia` is small (~24k edits); `menuitem` is the ~1.3M-row benchmark.
+
+```sh
+mastidb demo wikipedia
+mastidb console -d /tmp/wikipedia
+
+mastidb demo menuitem
+mastidb query -d /tmp/menuitem "SELECT COUNT(id)"
+```
+
+`mastidb demo` with no name lists what's available. `wiki` and `menu` work as aliases.
+
+**Ingesting your own file.** CSV, TSV, JSON, ndJSON.
 
 ```sh
 mastidb ingest -d /path/to/a/new/dir -s /path/to/source/file.csv
