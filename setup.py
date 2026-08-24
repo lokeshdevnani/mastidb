@@ -31,7 +31,7 @@ install_requires = [
 ]
 
 setup(name='mastidb', 
-      version='0.3.0',
+      version='0.4.0',
       author='Lokesh Devnani', 
       author_email='lokeshdevnani@gmail.com',
       description="A 'serious' OLAP database engine written in Python",
